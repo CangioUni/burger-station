@@ -1,0 +1,2099 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="cache-control" content="no-cache" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Burger POS</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+    <style>
+        /* Critical layout overrides – inline to bypass caching and Tailwind CDN order */
+        html, body {
+            height: 100dvh !important;
+            overflow: hidden !important;
+        }
+        /* Flex containment chain: every flex ancestor needs min-height:0
+           so that flex-grow children can shrink and action-bar stays visible */
+        #content-row  { min-height: 0; overflow: hidden; }
+        #cart-panel   { min-height: 0; overflow: hidden; }
+        #main-panel   { min-height: 0; overflow: hidden; }
+        #menu-col     { min-height: 0; overflow: hidden; }
+    </style>
+</head>
+
+<body class="bg-gray-100 flex flex-col">
+
+    <div id="main-header" class="bg-gray-900 text-white p-3 flex justify-between items-center">
+        <h1 class="header-title">Burger Station v1.0</h1>
+        <div class="flex items-center space-x-2">
+            <a href="/static/stats.html"
+                class="bg-green-600 hover:bg-green-500 px-3 py-1 rounded header-btn text-white no-underline text-center">📊
+                Statistiche</a>
+            <a href="/static/orders.html"
+                class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded header-btn text-white no-underline text-center">📜
+                Ordini Recenti</a>
+            <a href="/static/editor.html"
+                class="bg-blue-600 hover:bg-blue-500 px-3 py-1 rounded header-btn text-white no-underline text-center">🍔
+                Editor Menu</a>
+            <button onclick="openSettings()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded header-btn">⚙️
+                Impostazioni</button>
+            <span>Operatore:</span>
+            <select id="user-selector" class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white">
+            </select>
+        </div>
+    </div>
+
+    <div id="content-row" class="flex flex-grow overflow-hidden">
+        <div id="cart-panel" class="bg-white border-r flex flex-col p-4">
+            <h2 class="cart-header-title border-b pb-2 mb-4 flex justify-between items-center">
+                <span>Ordine Attuale</span>
+                <input type="number" id="custom-order-id" placeholder="ID (Auto)"
+                    class="cart-input-id text-center border-b-2 border-gray-400 focus:outline-none focus:border-blue-500 font-mono  bg-gray-50 rounded"
+                    title="Lascia vuoto per numero automatico">
+            </h2>
+            <div id="cart-items" class="flex-grow overflow-y-auto space-y-2"></div>
+            <div class="border-t pt-4">
+                <div class="flex justify-between cart-summary-text text-gray-600 mb-1">
+                    <span>Subtotale:</span>
+                    <span id="cart-subtotal">€0.00</span>
+                </div>
+                <div class="flex justify-between cart-summary-text text-red-500 mb-2">
+                    <span>Sconto:</span>
+                    <span id="cart-discount">-€0.00</span>
+                </div>
+                <div class="flex justify-between cart-total-text border-t pt-2 mt-2">
+                    <span>Totale:</span>
+                    <span id="cart-total">€0.00</span>
+                </div>
+                <button onclick="openPaymentModal()"
+                    class="w-full bg-red-600 hover:bg-red-500 text-white py-4 rounded cart-submit-btn mt-4">INVIA
+                    ORDINE</button>
+            </div>
+        </div>
+
+        <div id="main-panel" class="flex">
+            <div id="category-sidebar"
+                class="flex-shrink-0 p-2 bg-gray-200 border-r flex flex-col items-center py-4 space-y-4 overflow-y-auto">
+            </div>
+            <div id="menu-col" class="flex-grow flex flex-col">
+                <div id="menu-grid"
+                    class="grid grid-cols-3 xl:grid-cols-5 gap-3 p-3 overflow-y-auto flex-grow content-start"></div>
+                <div id="action-bar" class="bg-gray-800 p-3 grid grid-cols-6 gap-2 flex-shrink-0">
+                    <button onclick="setDiscount()"
+                        class="action-bar-btn bg-yellow-600 text-white rounded flex flex-col items-center justify-center shadow-lg border-2 border-yellow-500">Sconto
+                        %</button>
+                    <button onclick="toggleTakeaway()" id="btn-takeaway"
+                        class="action-bar-btn bg-gray-600 text-white rounded flex flex-col items-center justify-center shadow-lg border-2 border-gray-500">Asporto<br><span
+                            id="lbl-asporto" class="action-bar-subtext mt-1 text-gray-300">NO</span></button>
+                    <button onclick="openTableModal()"
+                        class="action-bar-btn bg-purple-600 text-white rounded flex flex-col items-center justify-center shadow-lg border-2 border-purple-500">Tavolo<br><span
+                            id="lbl-table" class="action-bar-subtext mt-1 text-purple-200">Nessuno</span></button>
+                    <button onclick="openOrderNotesModal()"
+                        class="action-bar-btn bg-blue-600 text-white rounded flex flex-col items-center justify-center shadow-lg border-2 border-blue-500">Note<br>Ordine</button>
+                    <button onclick="openVarieModal()"
+                        class="action-bar-btn bg-pink-600 text-white rounded flex flex-col items-center justify-center shadow-lg border-2 border-pink-500">VARIE</button>
+                    <button onclick="reprint()"
+                        class="action-bar-btn bg-gray-500 text-white rounded flex flex-col items-center justify-center shadow-lg border-2 border-gray-400">Ristampa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="success-overlay"
+        class="hidden fixed inset-0 bg-black bg-opacity-90 flex flex-col items-center justify-center text-white z-50 overflow-y-auto py-10">
+        <h2 class="success-title mb-2 text-green-500">ORDINE <span id="final-order-id" class="text-yellow-400">#000</span> INVIATO</h2>
+
+
+        <div id="success-order-details"
+            class="bg-gray-800 p-6 rounded text-left w-1/3 min-w-[400px] mb-8 overflow-y-auto max-h-96 text-xl border border-gray-700">
+            <!-- Dynamic order details -->
+        </div>
+
+        <div class="flex space-x-6 w-1/3 min-w-[400px]">
+            <button onclick="resetOrder()"
+                class="bg-white hover:bg-gray-200 text-black py-4 rounded-full modal-btn flex-1 shadow">NUOVO
+                ORDINE</button>
+            <button onclick="printBill()"
+                class="bg-yellow-600 hover:bg-yellow-500 text-white py-4 rounded-full modal-btn flex-1 shadow">Stampa
+                Scontrino</button>
+        </div>
+    </div>
+
+    <!-- Table Selection Modal -->
+    <div id="table-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/3 min-w-[400px] border border-gray-600">
+            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Seleziona Tavolo</h2>
+            <input type="text" id="table-input"
+                class="w-full bg-gray-700 text-white numpad-input font-mono text-center p-4 rounded mb-6 border border-gray-600"
+                readonly>
+            <div class="grid grid-cols-3 gap-3 mb-6">
+                <button onclick="tablePress('1')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">1</button>
+                <button onclick="tablePress('2')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">2</button>
+                <button onclick="tablePress('3')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">3</button>
+                <button onclick="tablePress('4')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">4</button>
+                <button onclick="tablePress('5')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">5</button>
+                <button onclick="tablePress('6')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">6</button>
+                <button onclick="tablePress('7')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">7</button>
+                <button onclick="tablePress('8')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">8</button>
+                <button onclick="tablePress('9')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">9</button>
+                <button onclick="tablePress('A')"
+                    class="bg-purple-600 p-6 rounded hover:bg-purple-500 numpad-btn shadow text-purple-100">A</button>
+                <button onclick="tablePress('0')"
+                    class="bg-gray-600 p-6 rounded hover:bg-gray-500 numpad-btn shadow">0</button>
+                <button onclick="tablePress('B')"
+                    class="bg-purple-600 p-6 rounded hover:bg-purple-500 numpad-btn shadow text-purple-100">B</button>
+            </div>
+            <div class="flex justify-between space-x-4">
+                <button onclick="tableClear()"
+                    class="bg-red-600 px-4 py-4 rounded modal-btn flex-1 shadow">Cancella</button>
+                <button onclick="closeTableModal()"
+                    class="bg-gray-600 px-4 py-4 rounded modal-btn flex-1 shadow">Annulla</button>
+                <button onclick="saveTableModal()"
+                    class="bg-green-600 px-4 py-4 rounded modal-btn flex-1 shadow">Applica</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Notes Modal -->
+    <div id="order-notes-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/2 border border-gray-600">
+            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Note all'Ordine</h2>
+            <textarea id="order-notes-input"
+                class="w-full bg-gray-700 text-white p-4 rounded border border-gray-600 h-32 text-2xl"
+                placeholder="Ad esempio: Tutto ben cotto, cliente allergico..."></textarea>
+            <div class="flex justify-end space-x-4 mt-6">
+                <button onclick="closeOrderNotesModal()"
+                    class="bg-gray-600 px-8 py-3 rounded modal-btn">Annulla</button>
+                <button onclick="saveOrderNotesModal()" class="bg-green-600 px-8 py-3 rounded modal-btn">Salva
+                    Note</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Personalization Modal -->
+    <div id="item-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-[60]">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/2">
+            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Opzioni Articolo</h2>
+            <button id="item-modal-combo-edit-btn"
+                class="hidden mb-4 bg-purple-600 hover:bg-purple-500 w-full py-3 rounded text-xl font-bold shadow-lg border-2 border-purple-500">
+                Modifica Scelte Menu
+            </button>
+            <div id="item-modal-notes-section" class="mb-4">
+                <label class="block mb-2 font-bold text-xl">Note</label>
+                <textarea id="item-notes"
+                    class="w-full bg-gray-700 text-white p-2 rounded border border-gray-600 h-24 text-xl"></textarea>
+            </div>
+            <div id="item-ingredients-container" class="mb-6">
+                <label class="block mb-2 font-bold text-xl">Ingredienti</label>
+                <div class="grid gap-2" id="item-ingredients-grid">
+                </div>
+            </div>
+            <div id="item-modal-discount-section" class="flex justify-between items-center mt-6">
+                <button onclick="setItemDiscount()"
+                    class="bg-yellow-600 text-white rounded px-6 py-2 font-bold shadow-lg border-2 border-yellow-500">Sconto</button>
+                <div class="flex justify-end space-x-4">
+                    <button id="item-modal-cancel-btn" onclick="closeItemModal()"
+                        class="bg-gray-600 px-6 py-2 rounded modal-btn">Annulla</button>
+                    <button id="item-modal-save-btn" onclick="saveItemModal()"
+                        class="bg-green-600 px-6 py-2 rounded modal-btn">Aggiorna</button>
+                </div>
+            </div>
+
+            <div class="flex justify-end space-x-4 mt-6">
+                <button id="item-modal-combo-cancel-btn" onclick="closeComboIngredientModal()"
+                    class="hidden bg-gray-600 px-6 py-2 rounded modal-btn">Annulla</button>
+                <button id="item-modal-combo-save-btn" onclick="saveComboIngredientModal()"
+                    class="hidden bg-green-600 px-6 py-2 rounded modal-btn">Salva Ingredienti Combo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Item Discount Modal -->
+    <div id="item-discount-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/3 min-w-[400px]">
+            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Imposta Sconto Articolo</h2>
+
+            <div class="flex justify-between items-end mb-4">
+                <div class="flex-grow flex flex-col">
+                    <label class="block text-gray-400 font-bold mb-1">Importo</label>
+                    <input type="text" id="item-discount-input"
+                        class="w-full bg-gray-700 text-white numpad-input p-2 rounded border border-gray-600 text-right"
+                        readonly value="0">
+                </div>
+                <div id="btn-item-disc" class="flex ml-2 pb-1 text-white">
+                    <button onclick="setItemDiscountType('%')" id="btn-item-disc-pct"
+                        class="bg-blue-600 font-bold rounded-l border border-blue-600">%</button>
+                    <button onclick="setItemDiscountType('€')" id="btn-item-disc-eur"
+                        class="bg-gray-700 font-bold rounded-r border border-gray-600">€</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mb-4 text-3xl font-bold">
+                <button onclick="numpadPressItemDisc(1)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">1</button>
+                <button onclick="numpadPressItemDisc(2)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">2</button>
+                <button onclick="numpadPressItemDisc(3)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">3</button>
+                <button onclick="numpadPressItemDisc(4)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">4</button>
+                <button onclick="numpadPressItemDisc(5)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">5</button>
+                <button onclick="numpadPressItemDisc(6)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">6</button>
+                <button onclick="numpadPressItemDisc(7)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">7</button>
+                <button onclick="numpadPressItemDisc(8)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">8</button>
+                <button onclick="numpadPressItemDisc(9)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">9</button>
+                <button onclick="numpadPressItemDisc('C')" class="bg-red-600 p-4 rounded hover:bg-red-500">C</button>
+                <button onclick="numpadPressItemDisc(0)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">0</button>
+                <button onclick="numpadPressItemDisc('00')"
+                    class="bg-gray-600 p-4 rounded hover:bg-gray-500">00</button>
+            </div>
+
+            <div class="flex justify-between text-xl text-gray-400 mb-1">
+                <span>Prezzo Articolo:</span>
+                <span id="item-disc-subtotal">€0.00</span>
+            </div>
+            <div class="flex justify-between text-3xl font-bold mb-6 text-green-400">
+                <span>Nuovo Prezzo:</span>
+                <span id="item-disc-total">€0.00</span>
+            </div>
+
+            <div class="flex justify-end space-x-4 border-t border-gray-600 pt-4">
+                <button onclick="closeItemDiscountModal()"
+                    class="bg-gray-600 px-6 py-3 rounded modal-btn">Annulla</button>
+                <button onclick="applyItemDiscount()" class="bg-green-600 px-6 py-3 rounded modal-btn">Conferma</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Discount Modal -->
+    <div id="discount-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/3 min-w-[400px]">
+            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Imposta Sconto</h2>
+
+            <div class="flex justify-between items-end mb-4">
+                <div class="flex-grow flex flex-col">
+                    <label class="block text-gray-400 font-bold mb-1">Importo</label>
+                    <input type="text" id="discount-input"
+                        class="w-full bg-gray-700 text-white numpad-input p-2 rounded border border-gray-600 text-right"
+                        readonly value="0">
+                </div>
+                <div id="btn-disc" class="flex ml-2 pb-1 text-white">
+                    <button onclick="setDiscountType('%')" id="btn-disc-pct"
+                        class="bg-blue-600 font-bold rounded-l border border-blue-600">%</button>
+                    <button onclick="setDiscountType('€')" id="btn-disc-eur"
+                        class="bg-gray-700 font-bold rounded-r border border-gray-600">€</button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mb-4 text-3xl font-bold">
+                <button onclick="numpadPress(1)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">1</button>
+                <button onclick="numpadPress(2)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">2</button>
+                <button onclick="numpadPress(3)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">3</button>
+                <button onclick="numpadPress(4)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">4</button>
+                <button onclick="numpadPress(5)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">5</button>
+                <button onclick="numpadPress(6)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">6</button>
+                <button onclick="numpadPress(7)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">7</button>
+                <button onclick="numpadPress(8)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">8</button>
+                <button onclick="numpadPress(9)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">9</button>
+                <button onclick="numpadPress('C')" class="bg-red-600 p-4 rounded hover:bg-red-500">C</button>
+                <button onclick="numpadPress(0)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">0</button>
+                <button onclick="numpadPress('00')" class="bg-gray-600 p-4 rounded hover:bg-gray-500">00</button>
+            </div>
+
+            <div class="flex justify-between text-xl text-gray-400 mb-1">
+                <span>Subtotale:</span>
+                <span id="disc-subtotal">€0.00</span>
+            </div>
+            <div class="flex justify-between text-3xl font-bold mb-6 text-green-400">
+                <span>Nuovo Totale:</span>
+                <span id="disc-total">€0.00</span>
+            </div>
+
+            <div class="flex justify-end space-x-4 border-t border-gray-600 pt-4">
+                <button onclick="closeDiscountModal()" class="bg-gray-600 px-6 py-3 rounded modal-btn">Annulla</button>
+                <button onclick="applyDiscount()" class="bg-green-600 px-6 py-3 rounded modal-btn">Applica</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="settings-overlay"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/2">
+            <h2 class="modal-title mb-6 border-b border-gray-600 pb-2">Impostazioni</h2>
+            <div class="mb-6 p-5 border border-gray-600 rounded-lg bg-gray-900 shadow-inner">
+                <h3 class="text-xl font-bold mb-4 text-blue-400 border-b border-gray-700 pb-2">Impostazioni Cassa
+                    (Personali)</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block mb-2 font-bold">IP Stampante Scontrini</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="bill-printer-ip"
+                                class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full" />
+                            <button onclick="testPrinter('bill-printer-ip')"
+                                class="bg-blue-600 hover:bg-blue-500 px-4 rounded font-bold whitespace-nowrap">Test</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-2 font-bold">Protocollo Stampante</label>
+                        <select id="printer-protocol"
+                            class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full font-bold">
+                            <option value="escpos">ESC/POS</option>
+                            <option value="xon/xoff">XON/XOFF</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" id="auto-print-main-cb"
+                        class="w-6 h-6 rounded text-green-500 focus:ring-green-500 bg-gray-700 border-gray-600">
+                    <span class="font-bold text-lg">Stampa Scontrino Automatica</span>
+                </label>
+            </div>
+
+            <div class="mb-6 p-5 border border-gray-600 rounded-lg bg-gray-900 shadow-inner">
+                <h3 class="text-xl font-bold mb-4 text-green-400 border-b border-gray-700 pb-2">Impostazioni Cucina
+                    (Globali)</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block mb-2 font-bold">IP Stampante Cucina</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="kitchen-printer-ip"
+                                class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full" />
+                            <button onclick="testPrinter('kitchen-printer-ip')"
+                                class="bg-blue-600 hover:bg-blue-500 px-4 rounded font-bold whitespace-nowrap">Test</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-2 font-bold">Protocollo Stampante</label>
+                        <select id="kitchen-printer-protocol"
+                            class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full font-bold">
+                            <option value="escpos">ESC/POS</option>
+                            <option value="xon/xoff">XON/XOFF</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" id="auto-print-kitchen-cb"
+                        class="w-6 h-6 rounded text-green-500 focus:ring-green-500 bg-gray-700 border-gray-600">
+                    <span class="font-bold text-lg">Stampa Comanda Automatica</span>
+                </label>
+            </div>
+
+            <div class="mb-4">
+                <label class="block mb-2 font-bold">Prossimo N. Ordine / Scontrino</label>
+                <div class="flex items-center space-x-2">
+                    <input type="number" id="settings-next-bill"
+                        class="bg-gray-700 text-white p-2 text-center rounded border border-gray-600 font-mono text-xl w-32 hide-spinners" />
+                    <button onclick="changeNextBill(-1)"
+                        class="bg-gray-600 hover:bg-gray-500 text-white w-12 h-12 rounded-full font-bold text-2xl flex items-center justify-center shadow transition-colors">-</button>
+                    <button onclick="changeNextBill(1)"
+                        class="bg-gray-600 hover:bg-gray-500 text-white w-12 h-12 rounded-full font-bold text-2xl flex items-center justify-center shadow transition-colors">+</button>
+                </div>
+                <p class="text-sm text-gray-400 mt-1">Imposta il numero da cui ripartire. Non cancellerà lo storico a
+                    database.</p>
+            </div>
+            <div class="flex justify-end space-x-4">
+                <button onclick="closeSettings()" class="bg-gray-600 px-6 py-2 rounded modal-btn">Annulla</button>
+                <button onclick="saveSettings()" class="bg-green-600 px-6 py-2 rounded modal-btn">Salva</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Combo Modal -->
+    <div id="combo-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex flex-col items-center justify-center text-white z-50 p-4">
+        <div
+            class="bg-gray-900 p-8 rounded-2xl w-full max-w-3xl shadow-2xl border border-gray-700 max-h-[90vh] flex flex-col">
+            <h2
+                class="text-4xl font-black mb-6 border-b border-gray-700 pb-4 text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-purple-500">
+                Configura Menù</h2>
+            <div id="combo-slots-container" class="mb-6 space-y-6 overflow-y-auto pr-2 flex-grow">
+                <!-- dynamic slots here -->
+            </div>
+            <div class="flex justify-end space-x-4 border-t border-gray-700 pt-6 mt-auto">
+                <button onclick="closeComboModal()"
+                    class="bg-gray-700 hover:bg-gray-600 px-8 py-4 rounded-xl text-xl font-bold transition-colors shadow">Annulla</button>
+                <button onclick="confirmComboModal()"
+                    class="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 px-8 py-4 rounded-xl text-xl font-bold shadow-lg transition-all transform hover:-translate-y-1">Aggiungi
+                    al Carrello</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Modal -->
+    <div id="payment-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/3 min-w-[400px]">
+            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Metodo di Pagamento</h2>
+
+            <div class="grid grid-cols-2 gap-4 mb-8 mt-4">
+                <button id="btn-pay-cash" onclick="selectPayment('Contanti')"
+                    class="bg-green-600 text-white py-6 rounded font-bold text-2xl border-4 border-transparent shadow-lg">CONTANTI</button>
+                <button id="btn-pay-satispay" onclick="selectPayment('Satispay')"
+                    class="bg-blue-500 text-white py-6 rounded font-bold text-2xl border-4 border-transparent shadow-lg">SATISPAY</button>
+                <button id="btn-pay-bancomat" onclick="selectPayment('Bancomat')"
+                    class="bg-blue-500 text-white py-6 rounded font-bold text-2xl border-4 border-transparent shadow-lg">BANCOMAT</button>
+            </div>
+
+            <div class="flex justify-between space-x-4 border-t border-gray-600 pt-6">
+                <button onclick="closePaymentModal()"
+                    class="bg-gray-600 px-4 py-4 rounded text-xl font-bold w-1/4">Annulla</button>
+                <button onclick="checkout(false)"
+                    class="bg-orange-500 hover:bg-orange-400 px-4 py-4 rounded text-xl font-bold w-1/3 shadow">Paga
+                    Dopo</button>
+                <button id="btn-confirm-payment" onclick="checkout(true)" disabled
+                    class="bg-gray-600 text-gray-400 cursor-not-allowed opacity-50 px-4 py-4 rounded text-xl font-bold flex-grow shadow">Conferma
+                    Pagamento</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Varie Modal -->
+    <div id="varie-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
+        <div class="bg-gray-800 p-8 rounded-lg w-1/3 min-w-[400px]">
+            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Aggiungi VARIE</h2>
+
+            <div class="mb-4">
+                <label class="block text-gray-400 font-bold mb-1">Importo (€)</label>
+                <input type="text" id="varie-input"
+                    class="w-full bg-gray-700 text-white numpad-input p-2 rounded border border-gray-600 text-right"
+                    readonly value="0">
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 mb-6 text-3xl font-bold">
+                <button onclick="numpadPressVarie(1)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">1</button>
+                <button onclick="numpadPressVarie(2)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">2</button>
+                <button onclick="numpadPressVarie(3)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">3</button>
+                <button onclick="numpadPressVarie(4)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">4</button>
+                <button onclick="numpadPressVarie(5)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">5</button>
+                <button onclick="numpadPressVarie(6)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">6</button>
+                <button onclick="numpadPressVarie(7)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">7</button>
+                <button onclick="numpadPressVarie(8)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">8</button>
+                <button onclick="numpadPressVarie(9)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">9</button>
+                <button onclick="numpadPressVarie('C')" class="bg-red-600 p-4 rounded hover:bg-red-500">C</button>
+                <button onclick="numpadPressVarie(0)" class="bg-gray-600 p-4 rounded hover:bg-gray-500">0</button>
+                <button onclick="numpadPressVarie('.')" class="bg-gray-600 p-4 rounded hover:bg-gray-500">.</button>
+            </div>
+
+            <div class="flex justify-end space-x-4 border-t border-gray-600 pt-4">
+                <button onclick="closeVarieModal()" class="bg-gray-600 px-6 py-3 rounded modal-btn">Annulla</button>
+                <button onclick="applyVarie()" class="bg-green-600 px-6 py-3 rounded modal-btn">Aggiungi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col space-y-3 pointer-events-none"></div>
+
+    <script>
+        function showToast(title, message, isSuccess) {
+            const container = document.getElementById('toast-container');
+            if (!container) return;
+            const toast = document.createElement('div');
+            toast.className = `p-4 rounded shadow-2xl text-white w-80 pointer-events-auto transition-opacity duration-500 opacity-100 border-l-4 border-white ${isSuccess ? 'bg-green-600' : 'bg-red-600'}`;
+            toast.innerHTML = `<div class="font-bold text-xl">${title}</div><div class="text-sm mt-1">${message}</div>`;
+            container.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.replace('opacity-100', 'opacity-0');
+                setTimeout(() => toast.remove(), 500);
+            }, 6000);
+        }
+
+        let menuData = [];
+        let categoriesData = [];
+        let activeCategory = 'panini';
+        let cart = [];
+        let state = { user_id: 1, table: "Nessuno", takeaway: false, discount: 0, discount_type: '%', payment_method: 'Cash', orderNotes: '' };
+
+        async function init() {
+            const [uResp, mResp, cResp] = await Promise.all([fetch('/users'), fetch('/menu'), fetch('/categories')]);
+            const users = await uResp.json();
+            menuData = await mResp.json();
+            categoriesData = await cResp.json();
+
+            const sel = document.getElementById('user-selector');
+            sel.innerHTML = '';
+            users.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.name}</option>`);
+
+            sel.addEventListener('change', async (e) => {
+                state.user_id = e.target.value;
+                await loadRemoteState();
+            });
+
+            if (users.length > 0) {
+                state.user_id = users[0].id;
+                sel.value = state.user_id;
+            }
+
+            const catSidebar = document.getElementById('category-sidebar');
+            let catHtml = '';
+            categoriesData.forEach(c => {
+                catHtml += `<button onclick="setCategory('${c.name}')" class="w-20 h-20 bg-white rounded-lg shadow cat-btn-text hover:bg-yellow-100 flex items-center justify-center text-center capitalize">${c.name}</button>`;
+            });
+            catSidebar.innerHTML = catHtml;
+
+            await loadRemoteState();
+
+            if (categoriesData.length > 0) setCategory(categoriesData[0].name);
+            initSortable();
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const loadOrderId = urlParams.get('load_order');
+            if (loadOrderId) {
+                await loadSpecificOrder(loadOrderId);
+            }
+        }
+
+        async function loadRemoteState() {
+            try {
+                const resp = await fetch('/users/' + state.user_id + '/cart');
+                if (resp.ok) {
+                    const data = await resp.json();
+                    cart = JSON.parse(data.active_cart);
+                    const savedState = JSON.parse(data.active_state);
+
+                    state.table = savedState.table || "Nessuno";
+                    state.takeaway = savedState.takeaway || false;
+                    state.discount = savedState.discount || 0;
+                    state.discount_type = savedState.discount_type || '%';
+                    state.payment_method = savedState.payment_method || 'Cash';
+                    state.orderNotes = savedState.orderNotes || '';
+                    state.auto_print_main = data.auto_print_main !== false;
+                    state.printer_ip = data.printer_ip || '';
+                    state.printer_protocol = data.printer_protocol || 'escpos';
+
+                    document.getElementById('lbl-table').innerText = state.table;
+                    const btnTake = document.getElementById('btn-takeaway');
+                    const lblAsporto = document.getElementById('lbl-asporto');
+                    if (state.takeaway) {
+                        btnTake.classList.add('bg-orange-600', 'border-orange-500');
+                        btnTake.classList.remove('bg-gray-600', 'border-gray-500');
+                        lblAsporto.innerText = "SI";
+                    } else {
+                        btnTake.classList.add('bg-gray-600', 'border-gray-500');
+                        btnTake.classList.remove('bg-orange-600', 'border-orange-500');
+                        lblAsporto.innerText = "NO";
+                    }
+
+                    const btnCash = document.getElementById('btn-pay-cash');
+                    const btnSatispay = document.getElementById('btn-pay-satispay');
+                    const btnBancomat = document.getElementById('btn-pay-bancomat');
+
+                    if (btnCash && btnSatispay && btnBancomat) {
+                        btnCash.classList.remove('border-yellow-400');
+                        btnCash.classList.add('border-transparent');
+                        btnSatispay.classList.remove('border-yellow-400');
+                        btnSatispay.classList.add('border-transparent');
+                        btnBancomat.classList.remove('border-yellow-400');
+                        btnBancomat.classList.add('border-transparent');
+
+                        if (state.payment_method === 'Satispay') {
+                            btnSatispay.classList.remove('border-transparent');
+                            btnSatispay.classList.add('border-yellow-400');
+                        } else if (state.payment_method === 'Bancomat') {
+                            btnBancomat.classList.remove('border-transparent');
+                            btnBancomat.classList.add('border-yellow-400');
+                        } else if (state.payment_method === 'Contanti' || state.payment_method === 'Cash') {
+                            btnCash.classList.remove('border-transparent');
+                            btnCash.classList.add('border-yellow-400');
+                        }
+                    }
+
+                    render(false);
+                }
+            } catch (e) {
+                console.error("Failed to load user state", e);
+            }
+        }
+
+        let saveTimeout;
+        function saveRemoteState() {
+            clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(async () => {
+                const payload = {
+                    active_cart: JSON.stringify(cart),
+                    active_state: JSON.stringify(state),
+                    auto_print_main: state.auto_print_main !== false,
+                    printer_ip: state.printer_ip || '',
+                    printer_protocol: state.printer_protocol || 'escpos'
+                };
+                await fetch('/users/' + state.user_id + '/cart', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            }, 300);
+        }
+
+        function initSortable() {
+            const el = document.getElementById('cart-items');
+            Sortable.create(el, {
+                animation: 150,
+                handle: '.drag-handle',
+                onEnd: function (evt) {
+                    const movedItem = cart.splice(evt.oldIndex, 1)[0];
+                    cart.splice(evt.newIndex, 0, movedItem);
+                    saveRemoteState();
+                }
+            });
+        }
+
+        function updateConfirmPaymentState() {
+            const btn = document.getElementById('btn-confirm-payment');
+            if (!btn) return;
+            if (!state.payment_method) {
+                btn.disabled = true;
+                btn.className = "bg-gray-600 text-gray-400 cursor-not-allowed opacity-50 px-4 py-4 rounded text-xl font-bold flex-grow shadow";
+            } else {
+                btn.disabled = false;
+                btn.className = "bg-green-600 hover:bg-green-500 text-white cursor-pointer px-4 py-4 rounded text-xl font-bold flex-grow shadow";
+            }
+        }
+
+        function openPaymentModal() {
+            if (cart.length === 0) return alert("Il carrello è vuoto");
+
+            // Clear payment selection when modal is opened so nothing is selected by default
+            state.payment_method = '';
+
+            const btnCash = document.getElementById('btn-pay-cash');
+            const btnSatispay = document.getElementById('btn-pay-satispay');
+            const btnBancomat = document.getElementById('btn-pay-bancomat');
+
+            btnCash.classList.remove('border-yellow-400');
+            btnCash.classList.add('border-transparent');
+            btnSatispay.classList.remove('border-yellow-400');
+            btnSatispay.classList.add('border-transparent');
+            btnBancomat.classList.remove('border-yellow-400');
+            btnBancomat.classList.add('border-transparent');
+
+            updateConfirmPaymentState();
+
+            document.getElementById('payment-modal').classList.remove('hidden');
+        }
+
+        function closePaymentModal() {
+            document.getElementById('payment-modal').classList.add('hidden');
+        }
+
+        function selectPayment(method) {
+            state.payment_method = method;
+
+            const btnCash = document.getElementById('btn-pay-cash');
+            const btnSatispay = document.getElementById('btn-pay-satispay');
+            const btnBancomat = document.getElementById('btn-pay-bancomat');
+
+            btnCash.classList.remove('border-yellow-400');
+            btnCash.classList.add('border-transparent');
+            btnSatispay.classList.remove('border-yellow-400');
+            btnSatispay.classList.add('border-transparent');
+            btnBancomat.classList.remove('border-yellow-400');
+            btnBancomat.classList.add('border-transparent');
+
+            if (method === 'Contanti' || method === 'Cash') {
+                btnCash.classList.remove('border-transparent');
+                btnCash.classList.add('border-yellow-400');
+            } else if (method === 'Satispay') {
+                btnSatispay.classList.remove('border-transparent');
+                btnSatispay.classList.add('border-yellow-400');
+            } else if (method === 'Bancomat') {
+                btnBancomat.classList.remove('border-transparent');
+                btnBancomat.classList.add('border-yellow-400');
+            }
+
+            updateConfirmPaymentState();
+        }
+
+        async function loadSpecificOrder(orderId) {
+            if (cart.length > 0) {
+                if (!confirm("Hai un ordine in corso. Vuoi sovrascriverlo con l'ordine selezionato?")) {
+                    return;
+                }
+            }
+
+            try {
+                const resp = await fetch('/orders');
+                const orders = await resp.json();
+                const order = orders.find(o => o.id === orderId);
+
+                if (order) {
+                    cart = order.items.map((i, idx) => {
+                        let parsedIngredients = [];
+                        if (i.ingredients) {
+                            parsedIngredients = i.ingredients.split(',').map(ing => {
+                                ing = ing.trim();
+                                let qty = 1;
+                                let type = 'base';
+                                let name = ing;
+
+                                if (ing.startsWith('Senza ')) { qty = 0; name = ing.replace('Senza ', ''); }
+                                else if (ing.startsWith('Doppio ')) { qty = 2; name = ing.replace('Doppio ', ''); }
+                                else if (ing.startsWith('Triplo ')) { qty = 3; name = ing.replace('Triplo ', ''); }
+                                else if (ing.match(/^\dx /)) {
+                                    qty = parseInt(ing[0]);
+                                    name = ing.substring(3);
+                                }
+                                else if (ing.startsWith('Con ')) {
+                                    qty = 1;
+                                    type = 'addition';
+                                    name = ing.replace('Con ', '');
+                                }
+
+                                return { name: name, type: type, qty: qty, price: 0 };
+                            });
+                        }
+
+                        let baseP = i.price_at_sale;
+                        let itemDiscAmt = 0;
+                        if (i.discount > 0) {
+                            if (i.discount_type === '%') {
+                                itemDiscAmt = baseP * (i.discount / 100);
+                            } else {
+                                itemDiscAmt = i.discount;
+                            }
+                        }
+                        let currPrice = baseP - itemDiscAmt;
+                        if (currPrice < 0) currPrice = 0;
+
+                        return {
+                            description: i.description,
+                            price: i.price_at_sale,
+                            current_price: currPrice,
+                            notes: i.notes || '',
+                            combo_choices: i.combo_choices ? i.combo_choices.split(',').filter(c => c.trim() !== '') : [],
+                            ingredients: parsedIngredients,
+                            item_discount: i.discount || 0,
+                            item_discount_type: i.discount_type || '€',
+                            _is_sent_to_kitchen: true, // Mark this item as already sent to kitchen
+                            cart_id: Date.now().toString() + idx.toString()
+                        };
+                    });
+
+                    state.table = order.table_number || "Nessuno";
+                    state.takeaway = order.takeaway || false;
+                    state.discount = order.discount || 0;
+                    state.discount_type = '€';
+                    state.orderNotes = order.notes || '';
+                    state.payment_method = order.payment_method || 'Contanti';
+
+                    document.getElementById('custom-order-id').value = order.id;
+
+                    selectPayment(state.payment_method);
+
+                    document.getElementById('lbl-table').innerText = state.table;
+                    const btnTake = document.getElementById('btn-takeaway');
+                    const lblAsporto = document.getElementById('lbl-asporto');
+                    if (state.takeaway) {
+                        btnTake.classList.add('bg-orange-600', 'border-orange-500');
+                        btnTake.classList.remove('bg-gray-600', 'border-gray-500');
+                        lblAsporto.innerText = "SI";
+                    } else {
+                        btnTake.classList.add('bg-gray-600', 'border-gray-500');
+                        btnTake.classList.remove('bg-orange-600', 'border-orange-500');
+                        lblAsporto.innerText = "NO";
+                    }
+
+                    render(true);
+                } else {
+                    alert("Ordine non trovato");
+                }
+            } catch (e) {
+                console.error("Error loading order", e);
+                alert("Errore nel caricamento dell'ordine");
+            }
+        }
+
+        function setCategory(cat) {
+            activeCategory = cat;
+            const grid = document.getElementById('menu-grid');
+            let html = '';
+            const filteredMenu = menuData
+                .filter(item => item.category === cat)
+                .sort((a, b) => {
+                    const oa = a.sort_order ?? 0;
+                    const ob = b.sort_order ?? 0;
+                    if (oa !== ob) return oa - ob;
+                    return a.description.localeCompare(b.description);
+                });
+            filteredMenu.forEach(item => {
+                let remainingHtml = '';
+                let titleColorClass = 'text-black';
+                if (item.max_items !== null && item.max_items !== undefined) {
+                    let remaining = item.max_items - (item.ordered_count || 0);
+                    if (remaining < 0) remaining = 0;
+                    remainingHtml = ` (${remaining})`;
+                    if (remaining === 0) {
+                        titleColorClass = 'text-red-600 font-bold';
+                    }
+                }
+                html += `
+                    <button onclick="addToCart(${JSON.stringify(item).replace(/"/g, '&quot;')})" class="bg-white p-2 rounded shadow hover:shadow-lg flex flex-col items-center justify-center aspect-square">
+                        <img src="${item.image_url}" class="w-full h-1/2 object-cover rounded mb-2">
+                        <span class="menu-item-title block ${titleColorClass} leading-tight w-full truncate">${item.description}${remainingHtml}</span>
+                        <span class="text-green-600 menu-item-price font-mono mt-1">€${item.price.toFixed(2)}</span>
+                    </button>`;
+            });
+            grid.innerHTML = html;
+        }
+
+        let activeComboItem = null;
+
+        function toggleTakeaway() {
+            state.takeaway = !state.takeaway;
+            const btn = document.getElementById('btn-takeaway');
+            const lblAsporto = document.getElementById('lbl-asporto');
+            if (state.takeaway) {
+                btn.classList.add('bg-orange-600', 'border-orange-500');
+                btn.classList.remove('bg-gray-600', 'border-gray-500');
+                lblAsporto.innerText = "SI";
+            } else {
+                btn.classList.add('bg-gray-600', 'border-gray-500');
+                btn.classList.remove('bg-orange-600', 'border-orange-500');
+                lblAsporto.innerText = "NO";
+            }
+            render();
+        }
+
+        // --- Table Actions ---
+        function openTableModal() {
+            document.getElementById('table-input').value = state.table === "Nessuno" ? "" : state.table;
+            document.getElementById('table-modal').classList.remove('hidden');
+        }
+
+        function tablePress(val) {
+            document.getElementById('table-input').value += val;
+        }
+
+        function tableClear() {
+            document.getElementById('table-input').value = '';
+        }
+
+        function closeTableModal() {
+            document.getElementById('table-modal').classList.add('hidden');
+        }
+
+        function saveTableModal() {
+            const val = document.getElementById('table-input').value.trim();
+            state.table = val === '' ? "Nessuno" : val;
+            document.getElementById('lbl-table').innerText = state.table;
+            closeTableModal();
+            render();
+        }
+
+        // --- Order Notes Actions ---
+        function openOrderNotesModal() {
+            document.getElementById('order-notes-input').value = state.orderNotes || '';
+            document.getElementById('order-notes-modal').classList.remove('hidden');
+        }
+
+        function closeOrderNotesModal() {
+            document.getElementById('order-notes-modal').classList.add('hidden');
+        }
+
+        function saveOrderNotesModal() {
+            state.orderNotes = document.getElementById('order-notes-input').value;
+            closeOrderNotesModal();
+            render();
+        }
+
+        function addToCart(item) {
+            if (item.is_combo) {
+                activeComboItem = item;
+                openComboModal(item);
+                return;
+            }
+            cart.push({ ...item, cart_id: Date.now().toString() + Math.random().toString(), notes: '', ingredients: [] });
+            render();
+        }
+
+        function closeComboModal() {
+            document.getElementById('combo-modal').classList.add('hidden');
+            activeComboItem = null;
+            comboEditMode = false;
+            comboEditCartId = null;
+        }
+
+        let comboEditMode = false;
+        let comboEditCartId = null;
+
+        function openComboModal(item, isEdit = false, cartId = null) {
+            comboEditMode = isEdit;
+            comboEditCartId = cartId;
+            const container = document.getElementById('combo-slots-container');
+            let slotsHtml = '';
+            let slots = [];
+            try { slots = JSON.parse(item.combo_items); } catch (e) { }
+
+            // if editing, find existing choices to pre-select
+            let existingChoices = [];
+            if (isEdit && cartId) {
+                const cartItem = cart.find(i => i.cart_id === cartId);
+                if (cartItem && cartItem.combo_choices) {
+                    existingChoices = cartItem.combo_choices;
+                }
+            }
+
+            slots.forEach((slot, idx) => {
+                if (slot.length === 0) return;
+
+                // Add Modifica Ingredienti button logic
+                let modButtonHtml = `<button type="button" id="combo-ing-btn-${idx}" onclick="openComboIngredientModal(${idx}, '${item.id}')" class="ml-4 text-sm bg-gray-600 hover:bg-gray-500 text-white px-3 py-1 rounded shadow disabled:opacity-50 disabled:cursor-not-allowed">Modifica Ingredienti</button>`;
+
+                let html = `<div class="bg-gray-800 p-6 rounded-xl border border-gray-700 shadow-inner">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-blue-400 uppercase tracking-wider">Selezione ${idx + 1}</h3>
+                        ${modButtonHtml}
+                    </div>
+                    <div class="grid grid-cols-2 md:grid-cols-3 gap-3" id="combo-slot-grid-${idx}">`;
+
+                slot.forEach((opt, optIdx) => {
+                    let optName = "Nessuna Scelta";
+                    let isOptChecked = false;
+                    let optMenuId = null;
+
+                    if (opt !== 0 && opt !== "0") {
+                        const found = menuData.find(m => String(m.id) === String(opt));
+                        if (found) {
+                            optName = found.description;
+                            optMenuId = found.id;
+                        }
+                    }
+
+                    if (isEdit && existingChoices.length > idx) {
+                        // Choice strings might have ingredients appended
+                        if (existingChoices[idx].startsWith(optName)) {
+                            isOptChecked = true;
+                        }
+                    } else if (!isEdit && optIdx === 0) {
+                        isOptChecked = true;
+                    }
+                    if (isOptChecked && optMenuId) {
+                        // we don't strictly need to do anything, but let's make sure comboSlotChanged works
+                    }
+
+                    const checkedStr = isOptChecked ? 'checked' : '';
+
+                    html += `
+                    <label class="cursor-pointer relative">
+                        <input type="radio" onchange="comboSlotChanged(${idx})" data-menu-id="${optMenuId || ''}" name="combo-slot-${idx}" value="${optName}" class="peer sr-only" ${checkedStr}>
+                        <div class="h-full flex items-center justify-center p-4 rounded-xl border-2 border-gray-600 bg-gray-700 text-gray-300 font-bold text-lg transition-all duration-200 ease-in-out hover:bg-gray-600 hover:border-gray-500 peer-checked:bg-blue-600 peer-checked:border-blue-400 peer-checked:text-white peer-checked:shadow-[0_0_15px_rgba(59,130,246,0.5)] peer-checked:-translate-y-1 text-center">
+                            ${optName}
+                        </div>
+                    </label>`;
+                });
+                html += `</div></div>`;
+                slotsHtml += html;
+            });
+            container.innerHTML = slotsHtml;
+
+            // Trigger change event to set button state initially
+            slots.forEach((slot, idx) => {
+                if (slot.length > 0) comboSlotChanged(idx);
+            });
+
+            document.getElementById('combo-modal').classList.remove('hidden');
+        }
+
+        // Object to temporarily hold customized ingredients for combo slots while modal is open
+        let comboTempSlotIngredients = {};
+
+        function comboSlotChanged(idx) {
+            const radios = document.getElementsByName(`combo-slot-${idx}`);
+            let selectedMenuId = null;
+            let selectedValue = null;
+            for (let r of radios) {
+                if (r.checked) {
+                    selectedMenuId = r.getAttribute('data-menu-id');
+                    selectedValue = r.value;
+                    break;
+                }
+            }
+
+            const btn = document.getElementById(`combo-ing-btn-${idx}`);
+            if (btn) {
+                if (!selectedMenuId || selectedValue === "Nessuna Scelta") {
+                    btn.disabled = true;
+                } else {
+                    const found = menuData.find(m => String(m.id) === String(selectedMenuId));
+                    if (found && (found.components || found.additions)) {
+                        btn.disabled = false;
+                    } else {
+                        btn.disabled = true;
+                    }
+                }
+            }
+        }
+
+        let activeComboIngIdx = null;
+
+        function openComboIngredientModal(idx, parentItemId) {
+            activeComboIngIdx = idx;
+            const radios = document.getElementsByName(`combo-slot-${idx}`);
+            let selectedMenuId = null;
+            let selectedValue = null;
+            for (let r of radios) {
+                if (r.checked) {
+                    selectedMenuId = r.getAttribute('data-menu-id');
+                    selectedValue = r.value;
+                    break;
+                }
+            }
+            if (!selectedMenuId) return;
+
+            const subItem = menuData.find(m => String(m.id) === String(selectedMenuId));
+            if (!subItem) return;
+
+            // Load existing customization if any, or default
+            if (comboTempSlotIngredients[idx]) {
+                tempIngredients = JSON.parse(JSON.stringify(comboTempSlotIngredients[idx]));
+            } else {
+                // Build base defaults from sub-item definition
+                tempIngredients = [];
+                const parseString = (str, type, defaultQty) => {
+                    if (!str) return [];
+                    return str.split(',').map(s => {
+                        const parts = s.trim().split(':');
+                        return {
+                            name: parts[0].trim(),
+                            price: parts.length > 1 ? parseFloat(parts[1]) : 0,
+                            type: type,
+                            qty: defaultQty
+                        };
+                    }).filter(i => i.name);
+                };
+                const baseComps = parseString(subItem.components, 'base', 1);
+                const additions = parseString(subItem.additions, 'addition', 0);
+                tempIngredients = [...baseComps, ...additions];
+
+                // Try to re-apply any saved modifier text already in the choice string
+                // e.g. "Panino Classico [Senza Formaggio, Con Uovo]"
+                if (selectedValue && selectedValue.includes('[')) {
+                    const bracketContent = selectedValue.replace(/^[^\[]+\[/, '').replace(/\]$/, '');
+                    if (bracketContent) {
+                        const modifiers = bracketContent.split(',').map(s => s.trim());
+                        modifiers.forEach(mod => {
+                            if (mod.startsWith('Senza ')) {
+                                const name = mod.replace('Senza ', '').trim();
+                                const ing = tempIngredients.find(i => i.name === name && i.type === 'base');
+                                if (ing) ing.qty = 0;
+                            } else if (mod.startsWith('Doppio ')) {
+                                const name = mod.replace('Doppio ', '').trim();
+                                const ing = tempIngredients.find(i => i.name === name);
+                                if (ing) ing.qty = 2;
+                            } else if (mod.startsWith('Triplo ')) {
+                                const name = mod.replace('Triplo ', '').trim();
+                                const ing = tempIngredients.find(i => i.name === name);
+                                if (ing) ing.qty = 3;
+                            } else if (/^\d+x /.test(mod)) {
+                                const parts = mod.split('x ');
+                                const qty = parseInt(parts[0]);
+                                const name = parts.slice(1).join('x ').trim();
+                                const ing = tempIngredients.find(i => i.name === name);
+                                if (ing) ing.qty = qty;
+                            } else if (mod.startsWith('Con ')) {
+                                const name = mod.replace('Con ', '').trim();
+                                const ing = tempIngredients.find(i => i.name === name && i.type === 'addition');
+                                if (ing) ing.qty = 1;
+                            }
+                        });
+                    }
+                }
+            }
+
+            // We borrow the item-ingredients-modal UI
+            if (tempIngredients.length > 0) {
+                document.getElementById('item-ingredients-container').classList.remove('hidden');
+                renderIngredientsGrid();
+            } else {
+                document.getElementById('item-ingredients-container').classList.add('hidden');
+            }
+
+            // Hide normal save button, show combo ing save button
+            document.getElementById('item-modal-save-btn').classList.add('hidden');
+            document.getElementById('item-modal-cancel-btn').classList.add('hidden');
+            document.getElementById('item-modal-combo-save-btn').classList.remove('hidden');
+            document.getElementById('item-modal-combo-cancel-btn').classList.remove('hidden');
+
+            // Hide notes and discount logic
+            document.getElementById('item-modal-notes-section').classList.add('hidden');
+            document.getElementById('item-modal-discount-section').classList.add('hidden');
+
+            document.getElementById('item-modal').classList.remove('hidden');
+        }
+
+        function saveComboIngredientModal() {
+            if (activeComboIngIdx !== null) {
+                comboTempSlotIngredients[activeComboIngIdx] = JSON.parse(JSON.stringify(tempIngredients));
+            }
+            closeComboIngredientModal();
+        }
+
+        function closeComboIngredientModal() {
+            document.getElementById('item-modal').classList.add('hidden');
+            activeComboIngIdx = null;
+        }
+
+        function confirmComboModal() {
+            if (!activeComboItem) return;
+            let slots = [];
+            try { slots = JSON.parse(activeComboItem.combo_items); } catch (e) { }
+
+            let selections = [];
+            slots.forEach((slot, idx) => {
+                if (slot.length === 0) return;
+                const radios = document.getElementsByName(`combo-slot-${idx}`);
+                for (let r of radios) {
+                    if (r.checked && r.value !== "Nessuna Scelta") {
+                        let choiceText = r.value;
+
+                        // Check if this slot had customized ingredients
+                        if (comboTempSlotIngredients[idx]) {
+                            let ingLabels = [];
+                            comboTempSlotIngredients[idx].forEach(ing => {
+                                if (ing.type === 'base') {
+                                    if (ing.qty === 0) ingLabels.push(`Senza ${ing.name}`);
+                                    else if (ing.qty === 2) ingLabels.push(`Doppio ${ing.name}`);
+                                    else if (ing.qty === 3) ingLabels.push(`Triplo ${ing.name}`);
+                                    else if (ing.qty > 3) ingLabels.push(`${ing.qty}x ${ing.name}`);
+                                } else if (ing.type === 'addition') {
+                                    if (ing.qty === 1) ingLabels.push(`Con ${ing.name}`);
+                                    else if (ing.qty === 2) ingLabels.push(`Doppio ${ing.name}`);
+                                    else if (ing.qty === 3) ingLabels.push(`Triplo ${ing.name}`);
+                                    else if (ing.qty > 3) ingLabels.push(`${ing.qty}x ${ing.name}`);
+                                }
+                            });
+                            if (ingLabels.length > 0) {
+                                choiceText += ` [${ingLabels.join(', ')}]`;
+                            }
+                        }
+
+                        // If it's an edit and NO new customizations were made,
+                        // try to preserve the existing customization text if any
+                        if (comboEditMode && comboEditCartId && !comboTempSlotIngredients[idx]) {
+                            const cartItem = cart.find(i => i.cart_id === comboEditCartId);
+                            if (cartItem && cartItem.combo_choices && cartItem.combo_choices.length > idx) {
+                                if (cartItem.combo_choices[idx].startsWith(r.value + " [")) {
+                                    choiceText = cartItem.combo_choices[idx];
+                                }
+                            }
+                        }
+
+                        selections.push(choiceText);
+                    }
+                }
+            });
+
+            let extraPrice = 0;
+            // calculate extra cost for combo ingredients
+            for (let idx in comboTempSlotIngredients) {
+                comboTempSlotIngredients[idx].forEach(ing => {
+                    if (ing.type === 'base') {
+                        extraPrice += (ing.qty - 1) * ing.price;
+                    } else if (ing.type === 'addition') {
+                        extraPrice += (ing.qty - 0) * ing.price;
+                    }
+                });
+            }
+            if (extraPrice < 0) extraPrice = 0; // combos shouldn't get cheaper than base
+
+            if (comboEditMode && comboEditCartId) {
+                const item = cart.find(i => i.cart_id === comboEditCartId);
+                if (item) {
+                    item.combo_choices = selections;
+                    item.price = activeComboItem.price + extraPrice;
+                    item.current_price = item.price;
+                }
+            } else {
+                cart.push({
+                    ...activeComboItem,
+                    price: activeComboItem.price + extraPrice,
+                    current_price: activeComboItem.price + extraPrice,
+                    cart_id: Date.now().toString() + Math.random().toString(),
+                    notes: '',
+                    ingredients: [],
+                    combo_choices: selections
+                });
+            }
+
+            // clear temp customizations
+            comboTempSlotIngredients = {};
+
+            closeComboModal();
+            render();
+        }
+
+        function render(save = true) {
+            const container = document.getElementById('cart-items');
+            container.innerHTML = '';
+            let subtotal = 0;
+            cart.forEach(item => {
+                const itemPrice = item.current_price !== undefined ? item.current_price : item.price;
+                subtotal += itemPrice;
+
+                let ingLabels = [];
+                if (item.ingredients && item.ingredients.length > 0) {
+                    item.ingredients.forEach(ing => {
+                        if (ing.type === 'base') {
+                            if (ing.qty === 0) ingLabels.push(`Senza ${ing.name}`);
+                            else if (ing.qty === 2) ingLabels.push(`Doppio ${ing.name}`);
+                            else if (ing.qty === 3) ingLabels.push(`Triplo ${ing.name}`);
+                            else if (ing.qty > 3) ingLabels.push(`${ing.qty}x ${ing.name}`);
+                        } else if (ing.type === 'addition') {
+                            if (ing.qty === 1) ingLabels.push(`Con ${ing.name}`);
+                            else if (ing.qty === 2) ingLabels.push(`Doppio ${ing.name}`);
+                            else if (ing.qty === 3) ingLabels.push(`Triplo ${ing.name}`);
+                            else if (ing.qty > 3) ingLabels.push(`${ing.qty}x ${ing.name}`);
+                        }
+                    });
+                }
+                const ingredText = ingLabels.length > 0 ? `<div class="cart-item-details text-blue-600">${ingLabels.join(', ')}</div>` : '';
+                const notesText = item.notes ? `<div class="cart-item-details text-gray-500 italic">Note: ${item.notes}</div>` : '';
+                let itemDiscountHtml = '';
+                let itemDiscountAmount = 0;
+                let originalItemPrice = item.price;
+                if (item.ingredients) {
+                    item.ingredients.forEach(ing => {
+                        if (ing.type === 'base') {
+                            originalItemPrice += (ing.qty - 1) * ing.price;
+                        } else if (ing.type === 'addition') {
+                            originalItemPrice += (ing.qty - 0) * ing.price;
+                        }
+                    });
+                }
+
+                if (item.item_discount && item.item_discount > 0) {
+                    if (item.item_discount_type === '%') {
+                        itemDiscountAmount = originalItemPrice * (item.item_discount / 100);
+                        itemDiscountHtml = `<div class="cart-item-details text-red-500 italic"> - Sconto: ${item.item_discount}% (-€${itemDiscountAmount.toFixed(2)})</div>`;
+                    } else {
+                        itemDiscountAmount = item.item_discount;
+                        itemDiscountHtml = `<div class="cart-item-details text-red-500 italic"> - Sconto: -€${itemDiscountAmount.toFixed(2)}</div>`;
+                    }
+                }
+
+
+                let comboHtml = '';
+                if (item.combo_choices && item.combo_choices.length > 0) {
+                    comboHtml = item.combo_choices.map(c => `<div class="cart-item-details text-purple-700 pl-2">&bull; ${c}</div>`).join('');
+                }
+
+                container.innerHTML += `
+                    <div class="flex justify-between items-center bg-gray-50 p-2 rounded border hover:bg-gray-200">
+                        <div class="cursor-move drag-handle p-2 text-gray-400 hover:text-gray-600 text-xl font-bold flex flex-col justify-center items-center h-full mr-2">
+                            ☰
+                        </div>
+                        <div class="text-xl flex-grow cursor-pointer" onclick="openItemModal('${item.cart_id}')">
+                            <div class="cart-item-title text-black">${item.description}${item.combo_choices && item.combo_choices.length > 0 ? ':' : ''}</div>
+                            ${comboHtml}
+                            ${ingredText}
+                            ${notesText}
+                            ${itemDiscountHtml}
+                            <div class="cart-item-price font-mono text-black">€${itemPrice.toFixed(2)}</div>
+                        </div>
+                        <div class="flex items-center space-x-3 ml-2">
+                            <button onclick="removeFromCart('${item.cart_id}', event)" class="w-8 h-8 bg-red-100 rounded text-red-700 font-bold">X</button>
+                        </div>
+                    </div>`;
+            });
+
+            let discountAmount = 0;
+            if (state.discount_type === '%') {
+                discountAmount = subtotal * ((state.discount || 0) / 100);
+            } else {
+                discountAmount = state.discount || 0;
+            }
+            if (discountAmount > subtotal) discountAmount = subtotal;
+            const total = subtotal - discountAmount;
+
+            document.getElementById('cart-subtotal').innerText = `€${subtotal.toFixed(2)}`;
+            document.getElementById('cart-discount').innerText = `-€${discountAmount.toFixed(2)}`;
+            document.getElementById('cart-total').innerText = `€${total.toFixed(2)}`;
+
+            if (save) saveRemoteState();
+
+            return total;
+        }
+
+        function removeFromCart(cart_id, event) {
+            event.stopPropagation();
+            cart = cart.filter(i => i.cart_id !== cart_id);
+            render();
+        }
+
+        async function checkout(isPaid) {
+            // Disable buttons and show loading state
+            const btnPagaDopo = document.querySelector('button[onclick="checkout(false)"]');
+            const btnConferma = document.querySelector('button[onclick="checkout(true)"]');
+
+            if (btnPagaDopo) {
+                btnPagaDopo.disabled = true;
+                btnPagaDopo.classList.add('opacity-50', 'cursor-not-allowed');
+            }
+            if (btnConferma) {
+                btnConferma.disabled = true;
+                btnConferma.classList.add('opacity-50', 'cursor-not-allowed');
+                btnConferma.innerText = "Elaborazione...";
+            }
+
+            if (cart.length === 0) {
+                if (btnConferma) btnConferma.innerText = "Conferma Pagamento";
+                if (btnPagaDopo) {
+                    btnPagaDopo.disabled = false;
+                    btnPagaDopo.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+                if (btnConferma) {
+                    btnConferma.disabled = false;
+                    btnConferma.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+                return alert("Il carrello è vuoto");
+            }
+
+            const method = isPaid ? (state.payment_method || 'Cash') : '';
+
+            if (isPaid && method === 'Bancomat') {
+                let bancomatSuccess = false;
+                while (!bancomatSuccess) {
+                    try {
+                        const bResp = await fetch('/pay/bancomat', { method: 'POST' });
+                        const bResult = await bResp.json();
+                        if (bResult.status === 'success') {
+                            bancomatSuccess = true;
+                        } else if (bResult.status === 'locked') {
+                            if (btnConferma) btnConferma.innerText = "ATTENDI...";
+                            await new Promise(r => setTimeout(r, 2000));
+                        }
+                    } catch (e) {
+                        alert("Errore connessione POS bancomat.");
+                        if (btnPagaDopo) {
+                            btnPagaDopo.disabled = false;
+                            btnPagaDopo.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                        if (btnConferma) {
+                            btnConferma.disabled = false;
+                            btnConferma.classList.remove('opacity-50', 'cursor-not-allowed');
+                            btnConferma.innerText = "Conferma Pagamento";
+                        }
+                        return;
+                    }
+                }
+                if (btnConferma) btnConferma.innerText = "Elaborazione...";
+            }
+
+            closePaymentModal();
+
+            const mappedCart = cart.map(item => {
+                let ingLabels = [];
+                if (item.ingredients && item.ingredients.length > 0) {
+                    item.ingredients.forEach(ing => {
+                        if (ing.type === 'base') {
+                            if (ing.qty === 0) ingLabels.push(`Senza ${ing.name}`);
+                            else if (ing.qty === 2) ingLabels.push(`Doppio ${ing.name}`);
+                            else if (ing.qty === 3) ingLabels.push(`Triplo ${ing.name}`);
+                            else if (ing.qty > 3) ingLabels.push(`${ing.qty}x ${ing.name}`);
+                        } else if (ing.type === 'addition') {
+                            if (ing.qty === 1) ingLabels.push(`Con ${ing.name}`);
+                            else if (ing.qty === 2) ingLabels.push(`Doppio ${ing.name}`);
+                            else if (ing.qty === 3) ingLabels.push(`Triplo ${ing.name}`);
+                            else if (ing.qty > 3) ingLabels.push(`${ing.qty}x ${ing.name}`);
+                        }
+                    });
+                }
+                return {
+                    ...item,
+                    price: (() => {
+                        let originalItemPrice = item.price;
+                        if (item.ingredients) {
+                            item.ingredients.forEach(ing => {
+                                if (ing.type === 'base') {
+                                    originalItemPrice += (ing.qty - 1) * ing.price;
+                                } else if (ing.type === 'addition') {
+                                    originalItemPrice += (ing.qty - 0) * ing.price;
+                                }
+                            });
+                        }
+                        return originalItemPrice;
+                    })(),
+                    item_discount: item.item_discount || item.discount || 0,
+                    item_discount_type: item.item_discount_type || item.discount_type || '€',
+                    ingredients: ingLabels.join(', '),
+                    combo_choices: item.combo_choices ? item.combo_choices.join(',') : '',
+                    _is_sent_to_kitchen: item._is_sent_to_kitchen || false
+                };
+            });
+
+            const customId = document.getElementById('custom-order-id').value;
+
+            const payload = {
+                items: mappedCart,
+                total: render(),
+                discount: state.discount || 0,
+                payment_method: method,
+                payment_status: isPaid,
+                takeaway: state.takeaway,
+                table_number: state.table,
+                user_id: state.user_id,
+                notes: state.orderNotes || ''
+            };
+
+            if (customId) {
+                payload.order_id = customId;
+            }
+
+            try {
+                const resp = await fetch('/order', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (!resp.ok) {
+                    throw new Error(`Errore Server: ${resp.status}`);
+                }
+
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    // Completely reset the POS seamlessly
+                    cart = [];
+                    state.table = "Nessuno";
+                    state.takeaway = false;
+                    state.discount = 0;
+                    state.discount_type = '%';
+                    state.payment_method = 'Cash';
+                    state.orderNotes = '';
+                    document.getElementById('custom-order-id').value = '';
+                    document.getElementById('lbl-table').innerText = "Nessuno";
+                    const btnTake = document.getElementById('btn-takeaway');
+                    const lblTake = document.getElementById('lbl-asporto');
+                    btnTake.classList.remove('bg-orange-600', 'border-orange-500');
+                    btnTake.classList.add('bg-gray-600', 'border-gray-500');
+                    if (lblTake) {
+                        lblTake.innerText = "NO";
+                    } else {
+                        btnTake.innerHTML = `Asporto<br><span id="lbl-asporto" class="action-bar-subtext mt-1 text-gray-300">NO</span>`;
+                    }
+
+                    if (window.history.replaceState) {
+                        window.history.replaceState(null, null, window.location.pathname);
+                    }
+
+                    render(false);
+
+                    // Fetch updated menu data to refresh remaining counts
+                    fetch('/menu')
+                        .then(r => r.json())
+                        .then(m => {
+                            menuData = m;
+                            setCategory(activeCategory);
+                        })
+                        .catch(e => console.error("Error refreshing menu counts:", e));
+
+                    document.getElementById('final-order-id').innerText = "#" + result.order_id;
+                    document.getElementById('success-overlay').classList.remove('hidden');
+
+                    if (result.auto_print) {
+                        if (result.bill_status) {
+                            if (result.bill_status.paper_out) {
+                                let retry = confirm(`CARTA ESAURITA nella stampante Scontrini (Ordine #${result.order_id}). Sostituire il rotolo e cliccare OK per ristampare.`);
+                                if (retry) {
+                                    await performReprintBill(result.order_id, payload);
+                                }
+                            } else {
+                                showToast(result.bill_status.printed ? "Scontrino Stampato" : "Errore Scontrino", result.bill_status.message, result.bill_status.printed);
+                            }
+                        }
+                        if (result.kitchen_status && result.kitchen_status.message !== "Non necessaria / disabilitata") {
+                            if (result.kitchen_status.paper_out) {
+                                let retry = confirm(`CARTA ESAURITA nella stampante Cucina (Ordine #${result.order_id}). Sostituire il rotolo e cliccare OK per ristampare.`);
+                                if (retry) {
+                                    await performReprintKitchen(result.order_id, payload);
+                                }
+                            } else {
+                                showToast(result.kitchen_status.printed ? "Comanda Cucina" : "Errore Cucina", result.kitchen_status.message, result.kitchen_status.printed);
+                            }
+                        }
+                    } else {
+                        showToast("Ordine Salvato", `Ordine #${result.order_id} registrato senza stampa`, true);
+                    }
+                } else {
+                    showToast("Errore", "Impossibile salvare l'ordine. Riprova.", false);
+                }
+            } catch (err) {
+                showToast("Errore di Rete", "Il server non risponde o l'operazione è stata annullata. Errore: " + err.message, false);
+            } finally {
+                // Restore buttons
+                const btnPagaDopo = document.querySelector('button[onclick="checkout(false)"]');
+                const btnConferma = document.querySelector('button[onclick="checkout(true)"]');
+                if (btnPagaDopo) {
+                    btnPagaDopo.disabled = false;
+                    btnPagaDopo.classList.remove('opacity-50', 'cursor-not-allowed');
+                }
+                if (btnConferma) {
+                    btnConferma.disabled = false;
+                    btnConferma.classList.remove('opacity-50', 'cursor-not-allowed');
+                    btnConferma.innerText = "Conferma Pagamento";
+                }
+            }
+        }
+
+        async function performReprintBill(order_id, payload) {
+            try {
+                let current_payload = payload;
+                if (!current_payload) {
+                    const resp = await fetch('/orders');
+                    const orders = await resp.json();
+                    const order = orders.find(o => o.id === order_id || o.id === order_id.toString());
+                    if (!order) {
+                        alert("Ordine non trovato per ristampa scontrino.");
+                        return;
+                    }
+                    current_payload = { ...order, user_id: state.user_id };
+                }
+
+                const resp = await fetch(`/order/${order_id}/print-bill`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(current_payload)
+                });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    if (result.bill_status && result.bill_status.paper_out) {
+                        let retry = confirm(`CARTA ESAURITA nella stampante Scontrini. Sostituire il rotolo e cliccare OK per riprovare.`);
+                        if (retry) {
+                            await performReprintBill(order_id, current_payload);
+                        }
+                    } else {
+                        showToast(result.bill_status.printed ? "Scontrino Stampato" : "Errore Scontrino", result.bill_status.message, result.bill_status.printed);
+                    }
+                } else {
+                    showToast("Errore", "Impossibile ristampare.", false);
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Errore Rete", "Connessione fallita.", false);
+            }
+        }
+
+        async function performReprintKitchen(order_id, payload) {
+            try {
+                let current_payload = payload;
+                if (!current_payload) {
+                    const resp = await fetch('/orders');
+                    const orders = await resp.json();
+                    const order = orders.find(o => o.id === order_id || o.id === order_id.toString());
+                    if (!order) {
+                        alert("Ordine non trovato per ristampa cucina.");
+                        return;
+                    }
+                    current_payload = order;
+                }
+
+                const resp = await fetch(`/order/${order_id}/print-kitchen`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(current_payload)
+                });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    if (result.kitchen_status && result.kitchen_status.paper_out) {
+                        let retry = confirm(`CARTA ESAURITA nella stampante Cucina. Sostituire il rotolo e cliccare OK per riprovare.`);
+                        if (retry) {
+                            await performReprintKitchen(order_id, current_payload);
+                        }
+                    } else {
+                        showToast(result.kitchen_status.printed ? "Comanda Cucina" : "Errore Cucina", result.kitchen_status.message, result.kitchen_status.printed);
+                    }
+                } else {
+                    showToast("Errore", "Impossibile ristampare.", false);
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Errore Rete", "Connessione fallita.", false);
+            }
+        }
+
+        async function reprint() {
+            const customId = prompt("Inserisci il numero dell'ordine da ristampare:");
+            if (!customId) return;
+            await performReprintBill(customId, null);
+        }
+
+        async function printBill() {
+            const order_id = document.getElementById('final-order-id').innerText.replace('#', '');
+            if (!order_id || order_id === '000') return;
+            await performReprintBill(order_id, null);
+        }
+
+        function resetOrder() {
+            document.getElementById('success-overlay').classList.add('hidden');
+        }
+
+        async function openSettings() {
+            const resp = await fetch('/settings');
+            const data = await resp.json();
+            document.getElementById('kitchen-printer-ip').value = data.kitchen_printer_ip || '';
+            document.getElementById('auto-print-kitchen-cb').checked = data.auto_print_kitchen !== false;
+            document.getElementById('kitchen-printer-protocol').value = data.kitchen_printer_protocol || 'escpos';
+            document.getElementById('settings-next-bill').value = data.next_order_number || 1;
+
+            document.getElementById('bill-printer-ip').value = state.printer_ip || '';
+            document.getElementById('printer-protocol').value = state.printer_protocol || 'escpos';
+            document.getElementById('auto-print-main-cb').checked = state.auto_print_main !== false;
+
+            document.getElementById('settings-overlay').classList.remove('hidden');
+        }
+
+        function closeSettings() {
+            document.getElementById('settings-overlay').classList.add('hidden');
+        }
+
+        async function testPrinter(inputId) {
+            const ip = document.getElementById(inputId).value;
+            if (!ip) {
+                alert("Inserisci un indirizzo IP");
+                return;
+            }
+            try {
+                const resp = await fetch(`/test-printer?ip=${encodeURIComponent(ip)}`);
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    alert("✅ " + result.message);
+                } else {
+                    alert("❌ " + result.message);
+                }
+            } catch (e) {
+                alert("❌ Errore durante il test di connessione.");
+            }
+        }
+
+        function changeNextBill(delta) {
+            const input = document.getElementById('settings-next-bill');
+            let val = parseInt(input.value) || 1;
+            val += delta;
+            if (val < 1) val = 1;
+            input.value = val;
+        }
+
+        async function saveSettings() {
+            const payload = {
+                bill_printer_ip: "", // Deprecated globally
+                kitchen_printer_ip: document.getElementById('kitchen-printer-ip').value,
+                auto_print_kitchen: document.getElementById('auto-print-kitchen-cb').checked,
+                kitchen_printer_protocol: document.getElementById('kitchen-printer-protocol').value,
+                next_order_number: parseInt(document.getElementById('settings-next-bill').value) || 1
+            };
+
+            // Aggiorniamo anche lo stato utente per lo scontrino principale
+            state.auto_print_main = document.getElementById('auto-print-main-cb').checked;
+            state.printer_ip = document.getElementById('bill-printer-ip').value;
+            state.printer_protocol = document.getElementById('printer-protocol').value;
+            await saveRemoteState();
+
+            const resp = await fetch('/settings', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            if (resp.ok) {
+                closeSettings();
+            } else {
+                alert("Error saving settings");
+            }
+        }
+
+
+
+        let activeCartId = null;
+        let tempIngredients = [];
+
+        function openItemModal(cart_id) {
+            const item = cart.find(i => i.cart_id === cart_id);
+            if (!item) return;
+            activeCartId = cart_id;
+            document.getElementById('item-notes').value = item.notes || '';
+
+            // Restore standard item-modal UI state (in case it was used by combo ingredient picker)
+            document.getElementById('item-modal-save-btn').classList.remove('hidden');
+            document.getElementById('item-modal-cancel-btn').classList.remove('hidden');
+
+            const comboSaveBtn = document.getElementById('item-modal-combo-save-btn');
+            if (comboSaveBtn) comboSaveBtn.classList.add('hidden');
+            const comboCancelBtn = document.getElementById('item-modal-combo-cancel-btn');
+            if (comboCancelBtn) comboCancelBtn.classList.add('hidden');
+
+            document.getElementById('item-modal-notes-section').classList.remove('hidden');
+            document.getElementById('item-modal-discount-section').classList.remove('hidden');
+
+            const comboEditBtn = document.getElementById('item-modal-combo-edit-btn');
+            if (item.is_combo) {
+                comboEditBtn.classList.remove('hidden');
+                comboEditBtn.onclick = () => {
+                    closeItemModal();
+                    activeComboItem = item;
+                    openComboModal(item, true, item.cart_id);
+                };
+            } else {
+                comboEditBtn.classList.add('hidden');
+            }
+
+            if (!item.ingredients || item.ingredients.length === 0) {
+                tempIngredients = [];
+                const parseString = (str, type, defaultQty) => {
+                    if (!str) return [];
+                    return str.split(',').map(s => {
+                        const parts = s.trim().split(':');
+                        return {
+                            name: parts[0].trim(),
+                            price: parts.length > 1 ? parseFloat(parts[1]) : 0,
+                            type: type,
+                            qty: defaultQty
+                        };
+                    }).filter(i => i.name);
+                };
+                const baseComps = parseString(item.components, 'base', 1);
+                const additions = parseString(item.additions, 'addition', 0);
+                tempIngredients = [...baseComps, ...additions];
+            } else {
+                tempIngredients = JSON.parse(JSON.stringify(item.ingredients));
+            }
+
+            if (tempIngredients.length > 0) {
+                document.getElementById('item-ingredients-container').classList.remove('hidden');
+                renderIngredientsGrid();
+            } else {
+                document.getElementById('item-ingredients-container').classList.add('hidden');
+            }
+
+            document.getElementById('item-modal').classList.remove('hidden');
+        }
+
+        function renderIngredientsGrid() {
+            const container = document.getElementById('item-ingredients-grid');
+            container.innerHTML = '';
+
+            const renderSection = (title, items) => {
+                if (items.length === 0) return '';
+                let html = `<div class="mb-4"><h3 class="text-lg font-bold text-gray-400 mb-2">${title}</h3><div class="grid grid-cols-2 lg:grid-cols-4 gap-3">`;
+                items.forEach(ing => {
+                    const priceLabel = ing.price > 0 ? `<div class="text-sm font-bold text-green-400 font-mono mt-1">€${ing.price.toFixed(2)}</div>` : '';
+                    html += `
+                        <div class="bg-gray-700 p-4 rounded flex flex-col items-center justify-between shadow">
+                            <span class="font-bold text-center text-lg leading-tight mb-2">${ing.name}</span>
+                            ${priceLabel}
+                            <div class="flex items-center space-x-4 mt-3 bg-gray-800 rounded-full px-2 py-1 border border-gray-600">
+                                <button onclick="changeIngredientQty('${ing.name}', -1)" class="w-10 h-10 flex items-center justify-center rounded-full bg-red-600 hover:bg-red-500 font-bold text-2xl pb-1 shadow-lg">-</button>
+                                <span class="font-bold text-xl w-6 text-center select-none">${ing.qty}</span>
+                                <button onclick="changeIngredientQty('${ing.name}', 1)" class="w-10 h-10 flex items-center justify-center rounded-full bg-green-600 hover:bg-green-500 font-bold text-2xl pb-1 shadow-lg">+</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                html += `</div></div>`;
+                return html;
+            }
+
+            const baseComps = tempIngredients.filter(i => i.type === 'base');
+            const additions = tempIngredients.filter(i => i.type === 'addition');
+            container.innerHTML += renderSection('Componenti Base', baseComps);
+            container.innerHTML += renderSection('Aggiunte Opzionali', additions);
+        }
+
+        function changeIngredientQty(name, delta) {
+            const ing = tempIngredients.find(i => i.name === name);
+            if (ing) {
+                ing.qty += delta;
+                if (ing.qty < 0) ing.qty = 0;
+                renderIngredientsGrid();
+            }
+        }
+
+        function closeItemModal() {
+            document.getElementById('item-modal').classList.add('hidden');
+            activeCartId = null;
+        }
+
+        function saveItemModal() {
+            const item = cart.find(i => i.cart_id === activeCartId);
+            if (item) {
+                item.notes = document.getElementById('item-notes').value;
+                item.ingredients = JSON.parse(JSON.stringify(tempIngredients));
+
+                let newPrice = item.price;
+                item.ingredients.forEach(ing => {
+                    if (ing.type === 'base') {
+                        newPrice += (ing.qty - 1) * ing.price;
+                    } else if (ing.type === 'addition') {
+                        newPrice += (ing.qty - 0) * ing.price;
+                    }
+                });
+                let discountAmount = 0;
+                if (item.item_discount && item.item_discount > 0) {
+                    if (item.item_discount_type === '%') {
+                        discountAmount = newPrice * (item.item_discount / 100);
+                    } else {
+                        discountAmount = item.item_discount;
+                    }
+                }
+                newPrice -= discountAmount;
+
+                item.current_price = newPrice > 0 ? newPrice : 0;
+            }
+            closeItemModal();
+            render();
+        }
+
+
+        let itemDiscType = '%';
+        let itemDiscValStr = '0';
+        let itemDiscSubtotal = 0;
+
+        function setItemDiscount() {
+            const item = cart.find(i => i.cart_id === activeCartId);
+            if (!item) return;
+
+            let basePrice = item.price;
+            if (item.ingredients) {
+                tempIngredients.forEach(ing => {
+                    if (ing.type === 'base') {
+                        basePrice += (ing.qty - 1) * ing.price;
+                    } else if (ing.type === 'addition') {
+                        basePrice += (ing.qty - 0) * ing.price;
+                    }
+                });
+            }
+
+            itemDiscSubtotal = basePrice;
+            document.getElementById('item-disc-subtotal').innerText = `€${itemDiscSubtotal.toFixed(2)}`;
+
+            itemDiscType = item.item_discount_type || '%';
+            setItemDiscountType(itemDiscType);
+
+            let currentDiscFloat = item.item_discount || 0;
+            if (itemDiscType === '%') {
+                itemDiscValStr = Math.round(currentDiscFloat).toString();
+            } else {
+                itemDiscValStr = Math.round(currentDiscFloat * 100).toString();
+            }
+
+            updateItemDiscountUI();
+
+            // close existing modal
+            document.getElementById('item-modal').classList.add('hidden');
+
+            document.getElementById('item-discount-modal').classList.remove('hidden');
+        }
+
+        function setItemDiscountType(type) {
+            itemDiscType = type;
+            document.getElementById('btn-item-disc-pct').className = `px-4 py-2 text-2xl font-bold rounded-l border ${type === '%' ? 'bg-blue-600 border-blue-600' : 'bg-gray-700 border-gray-600'}`;
+            document.getElementById('btn-item-disc-eur').className = `px-4 py-2 text-2xl font-bold rounded-r border ${type === '€' ? 'bg-blue-600 border-blue-600' : 'bg-gray-700 border-gray-600'}`;
+            updateItemDiscountUI();
+        }
+
+        function numpadPressItemDisc(val) {
+            if (val === 'C') {
+                itemDiscValStr = '0';
+            } else if (val === '00') {
+                if (itemDiscValStr !== '0') {
+                    itemDiscValStr += '00';
+                }
+            } else {
+                if (itemDiscValStr === '0') {
+                    itemDiscValStr = val.toString();
+                } else {
+                    itemDiscValStr += val.toString();
+                }
+            }
+            updateItemDiscountUI();
+        }
+
+        function getDiscountFormatted() {
+            let valFloat = parseInt(discValStr);
+            if (discType === '%') {
+                return valFloat.toString();
+            } else {
+                return (valFloat / 100).toFixed(2);
+            }
+        }
+
+        function getItemDiscountFormatted() {
+            let valFloat = parseInt(itemDiscValStr);
+            if (itemDiscType === '%') {
+                return valFloat.toString();
+            } else {
+                return (valFloat / 100).toFixed(2);
+            }
+        }
+
+        function updateItemDiscountUI() {
+            let formattedVal = getItemDiscountFormatted();
+            if (itemDiscType === '%') {
+                document.getElementById('item-discount-input').value = formattedVal + '%';
+            } else {
+                document.getElementById('item-discount-input').value = formattedVal + '€';
+            }
+            let discAmt = 0;
+            let valFloat = parseFloat(formattedVal) || 0;
+            if (itemDiscType === '%') {
+                discAmt = itemDiscSubtotal * (valFloat / 100);
+            } else {
+                discAmt = valFloat;
+            }
+            let newTotal = itemDiscSubtotal - discAmt;
+            if (newTotal < 0) newTotal = 0;
+            document.getElementById('item-disc-total').innerText = `€${newTotal.toFixed(2)}`;
+        }
+
+        function applyItemDiscount() {
+            const item = cart.find(i => i.cart_id === activeCartId);
+            if (item) {
+                item.item_discount = parseFloat(getItemDiscountFormatted()) || 0;
+                item.item_discount_type = itemDiscType;
+            }
+
+            closeItemDiscountModal();
+            // Re-open item modal to save all changes
+            document.getElementById('item-modal').classList.remove('hidden');
+        }
+
+        function closeItemDiscountModal() {
+            document.getElementById('item-discount-modal').classList.add('hidden');
+            // Re-open item modal to continue editing if needed
+            document.getElementById('item-modal').classList.remove('hidden');
+        }
+
+        let discType = '%';
+        let discValStr = '0';
+        let discSubtotal = 0;
+
+        function setDiscount() {
+            discSubtotal = cart.reduce((sum, item) => sum + (item.current_price !== undefined ? item.current_price : item.price), 0);
+            document.getElementById('disc-subtotal').innerText = `€${discSubtotal.toFixed(2)}`;
+            discType = state.discount_type || '%';
+            setDiscountType(discType);
+
+            let currentDiscFloat = state.discount || 0;
+            // Scale existing discount to integer cents for the pad
+            if (discType === '%') {
+                discValStr = Math.round(currentDiscFloat).toString();
+            } else {
+                discValStr = Math.round(currentDiscFloat * 100).toString();
+            }
+
+            updateDiscountUI();
+            document.getElementById('discount-modal').classList.remove('hidden');
+        }
+
+        function setDiscountType(type) {
+            discType = type;
+            document.getElementById('btn-disc-pct').className = `px-4 py-2 text-2xl font-bold rounded-l border ${type === '%' ? 'bg-blue-600 border-blue-600' : 'bg-gray-700 border-gray-600'}`;
+            document.getElementById('btn-disc-eur').className = `px-4 py-2 text-2xl font-bold rounded-r border ${type === '€' ? 'bg-blue-600 border-blue-600' : 'bg-gray-700 border-gray-600'}`;
+            updateDiscountUI();
+        }
+
+        function numpadPress(val) {
+            if (val === 'C') {
+                discValStr = '0';
+            } else if (val === '00') {
+                discValStr += val;
+            } else {
+                if (discValStr === '0') discValStr = val.toString();
+                else discValStr += val.toString();
+            }
+            updateDiscountUI();
+        }
+
+        function getDiscountFormatted() {
+            let val = parseInt(discValStr) || 0;
+            return (val / 100).toFixed(2);
+        }
+
+        function updateDiscountUI() {
+            let formatted = getDiscountFormatted();
+            document.getElementById('discount-input').value = formatted;
+            let valNum = parseFloat(formatted) || 0;
+            let discAmt = 0;
+            if (discType === '%') {
+                discAmt = discSubtotal * (valNum / 100);
+            } else {
+                discAmt = valNum;
+            }
+            if (discAmt > discSubtotal) discAmt = discSubtotal;
+            const newTotal = discSubtotal - discAmt;
+            document.getElementById('disc-total').innerText = `€${newTotal.toFixed(2)}`;
+        }
+
+        function applyDiscount() {
+            state.discount = parseFloat(getDiscountFormatted()) || 0;
+            state.discount_type = discType;
+            closeDiscountModal();
+            render();
+        }
+
+        function closeDiscountModal() {
+            document.getElementById('discount-modal').classList.add('hidden');
+        }
+
+        // Logic for selectTable goes here...
+
+        let varieValStr = '0';
+
+        function openVarieModal() {
+            varieValStr = '0';
+            document.getElementById('varie-input').value = varieValStr;
+            document.getElementById('varie-modal').classList.remove('hidden');
+        }
+
+        function closeVarieModal() {
+            document.getElementById('varie-modal').classList.add('hidden');
+        }
+
+        function numpadPressVarie(val) {
+            if (val === 'C') {
+                varieValStr = '0';
+            } else if (val === '.') {
+                if (!varieValStr.includes('.')) varieValStr += '.';
+            } else {
+                if (varieValStr === '0') varieValStr = val.toString();
+                else varieValStr += val.toString();
+            }
+            document.getElementById('varie-input').value = varieValStr;
+        }
+
+        function applyVarie() {
+            let amount = parseFloat(varieValStr) || 0;
+            if (amount > 0) {
+                cart.push({
+                    description: "VARIE",
+                    price: amount,
+                    category: "varie",
+                    image_url: "",
+                    components: "",
+                    is_combo: false,
+                    cart_id: Date.now().toString() + Math.random().toString(),
+                    notes: '',
+                    ingredients: []
+                });
+                render();
+            }
+            closeVarieModal();
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

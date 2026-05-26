@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Burger POS - Statistiche</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body class="bg-gray-100 h-screen flex flex-col overflow-hidden">
+    <div id="main-header" class="bg-gray-900 text-white p-3 flex justify-between items-center">
+        <h1 class="header-title">Statistiche Ordini</h1>
+        <div class="flex items-center space-x-2">
+            <a href="/" class="bg-indigo-600 hover:bg-indigo-500 px-3 py-1 rounded header-btn text-white no-underline text-center">⬅️ Torna alla Cassa</a>
+        </div>
+    </div>
+
+    <div class="p-4 flex-grow overflow-y-auto">
+        <div class="bg-white p-4 rounded shadow mb-6">
+            <h2 class="text-xl font-bold mb-4 border-b pb-2">Seleziona Giornata Lavorativa</h2>
+            <div class="flex items-center space-x-4">
+                <select id="day-selector" class="bg-gray-100 border border-gray-300 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5">
+                    <option value="">Caricamento...</option>
+                </select>
+                <button onclick="loadStats()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded shadow">Aggiorna Dati</button>
+                <div class="flex-grow"></div>
+                <button onclick="exportData('excel')" id="btn-excel" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-4 rounded shadow hidden">⬇️ Esporta Excel</button>
+                <button onclick="exportData('pdf')" id="btn-pdf" class="bg-red-600 hover:bg-red-500 text-white font-bold py-2 px-4 rounded shadow hidden">⬇️ Esporta PDF</button>
+            </div>
+        </div>
+
+        <div id="stats-content" class="hidden">
+            <!-- Overview -->
+            <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="bg-blue-100 p-4 rounded shadow text-center">
+                    <div class="text-gray-500 font-bold uppercase">Totale Ordini</div>
+                    <div id="overview-orders" class="text-3xl font-bold text-blue-800">0</div>
+                </div>
+                <div class="bg-green-100 p-4 rounded shadow text-center">
+                    <div class="text-gray-500 font-bold uppercase">Incasso Totale</div>
+                    <div id="overview-revenue" class="text-3xl font-bold text-green-800">€0.00</div>
+                </div>
+                <div class="bg-yellow-100 p-4 rounded shadow text-center">
+                    <div class="text-gray-500 font-bold uppercase">Menù Venduti</div>
+                    <div id="overview-menus" class="text-3xl font-bold text-yellow-800">0</div>
+                </div>
+                <div class="bg-purple-100 p-4 rounded shadow text-center">
+                    <div class="text-gray-500 font-bold uppercase">Totale Burger Realizzati</div>
+                    <div id="overview-burgers" class="text-3xl font-bold text-purple-800">0</div>
+                </div>
+            </div>
+
+            <!-- Charts -->
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div class="bg-white p-4 rounded shadow">
+                    <h3 class="font-bold text-lg mb-2 text-center border-b pb-2">Ordini nel Tempo (15 min)</h3>
+                    <div style="height: 300px;"><canvas id="chart-time"></canvas></div>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="bg-white p-4 rounded shadow">
+                        <h3 class="font-bold text-lg mb-2 text-center border-b pb-2">Metodo Pagamento</h3>
+                        <div style="height: 250px;"><canvas id="chart-payment"></canvas></div>
+                    </div>
+                    <div class="bg-white p-4 rounded shadow">
+                        <h3 class="font-bold text-lg mb-2 text-center border-b pb-2">Distribuzione Burger</h3>
+                        <div style="height: 250px;"><canvas id="chart-burgers"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Categories -->
+            <div class="bg-white p-4 rounded shadow">
+                <h3 class="font-bold text-xl mb-4 border-b pb-2">Articoli Venduti per Categoria</h3>
+                <div id="categories-container" class="grid grid-cols-3 gap-6">
+                </div>
+            </div>
+        </div>
+
+        <div id="empty-state" class="text-center text-gray-500 mt-20 hidden">
+            <h2 class="text-2xl font-bold mb-2">Nessun dato disponibile</h2>
+            <p>Seleziona una giornata lavorativa con degli ordini.</p>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loading-overlay" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded shadow-lg text-center">
+            <h2 class="text-2xl font-bold text-gray-800 mb-2">Elaborazione in corso...</h2>
+            <p class="text-gray-600">Creazione dei documenti richiesta.</p>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+
+        async function init() {
+            try {
+                const res = await fetch('/api/stats/days');
+                const data = await res.json();
+                const sel = document.getElementById('day-selector');
+                sel.innerHTML = '';
+
+                if (data.days && data.days.length > 0) {
+                    data.days.forEach(day => {
+                        sel.innerHTML += `<option value="${day}">${day}</option>`;
+                    });
+                    loadStats();
+                } else {
+                    sel.innerHTML = `<option value="">Nessun ordine nel DB</option>`;
+                }
+            } catch (err) {
+                console.error("Error fetching days", err);
+            }
+        }
+
+        async function loadStats() {
+            const day = document.getElementById('day-selector').value;
+            if (!day) return;
+
+            try {
+                const res = await fetch(`/api/stats/data?day=${day}`);
+                const stats = await res.json();
+
+                if (stats.total_orders === 0) {
+                    document.getElementById('stats-content').classList.add('hidden');
+                    document.getElementById('empty-state').classList.remove('hidden');
+                    document.getElementById('btn-excel').classList.add('hidden');
+                    document.getElementById('btn-pdf').classList.add('hidden');
+                    return;
+                }
+
+                document.getElementById('empty-state').classList.add('hidden');
+                document.getElementById('stats-content').classList.remove('hidden');
+                document.getElementById('btn-excel').classList.remove('hidden');
+                document.getElementById('btn-pdf').classList.remove('hidden');
+
+                // Update Overview
+                document.getElementById('overview-orders').innerText = stats.total_orders;
+                document.getElementById('overview-revenue').innerText = `€${stats.total_revenue.toFixed(2)}`;
+                document.getElementById('overview-menus').innerText = stats.burger_stats.total_menus;
+                document.getElementById('overview-burgers').innerText = stats.burger_stats.total_burgers;
+
+                renderTimeChart(stats.orders_over_time);
+                renderPaymentChart(stats.revenue_by_payment);
+                renderBurgersChart(stats.burger_stats.burger_types);
+                renderCategories(stats.items_by_category);
+
+            } catch (err) {
+                console.error("Error loading stats", err);
+                alert("Errore nel caricamento delle statistiche.");
+            }
+        }
+
+        function destroyChart(id) {
+            if (charts[id]) {
+                charts[id].destroy();
+            }
+        }
+
+        function renderTimeChart(data) {
+            destroyChart('chart-time');
+            const ctx = document.getElementById('chart-time').getContext('2d');
+            charts['chart-time'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        label: 'Ordini / 15 min',
+                        data: Object.values(data),
+                        borderColor: 'rgb(59, 130, 246)',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        borderWidth: 2,
+                        tension: 0.3,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: { beginAtZero: true, ticks: { stepSize: 1 } }
+                    }
+                }
+            });
+        }
+
+        function renderPaymentChart(data) {
+            destroyChart('chart-payment');
+            const ctx = document.getElementById('chart-payment').getContext('2d');
+            charts['chart-payment'] = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: ['#22c55e', '#3b82f6', '#eab308', '#ef4444', '#a855f7']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderBurgersChart(data) {
+            destroyChart('chart-burgers');
+            const ctx = document.getElementById('chart-burgers').getContext('2d');
+            charts['chart-burgers'] = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(data),
+                    datasets: [{
+                        data: Object.values(data),
+                        backgroundColor: ['#f97316', '#8b5cf6', '#06b6d4', '#f43f5e', '#84cc16', '#64748b']
+                    }]
+                },
+                options: { responsive: true, maintainAspectRatio: false }
+            });
+        }
+
+        function renderCategories(catData) {
+            const container = document.getElementById('categories-container');
+            container.innerHTML = '';
+
+            for (const [catName, items] of Object.entries(catData)) {
+                if (Object.keys(items).length === 0) continue;
+
+                let itemsHtml = '';
+                // Sort by count desc
+                const sortedItems = Object.entries(items).sort((a, b) => b[1] - a[1]);
+                for (const [name, qty] of sortedItems) {
+                    itemsHtml += `
+                        <div class="flex justify-between items-center py-2 border-b last:border-0">
+                            <span class="text-gray-700 font-medium">${name}</span>
+                            <span class="bg-gray-200 text-gray-800 text-xs font-bold px-2 py-1 rounded-full">${qty}</span>
+                        </div>
+                    `;
+                }
+
+                container.innerHTML += `
+                    <div class="bg-gray-50 border rounded-lg p-4 shadow-inner">
+                        <h4 class="font-bold text-gray-800 uppercase tracking-wide mb-3 border-b-2 border-blue-200 pb-1">${catName}</h4>
+                        <div class="flex flex-col">
+                            ${itemsHtml}
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        async function exportData(type) {
+            const day = document.getElementById('day-selector').value;
+            if (!day) return;
+
+            document.getElementById('loading-overlay').classList.remove('hidden');
+
+            try {
+                const endpoint = type === 'excel' ? '/api/stats/export/excel' : '/api/stats/export/pdf';
+                const res = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ day: day })
+                });
+
+                if (!res.ok) throw new Error("Export failed");
+                const result = await res.json();
+
+                if (result.status === 'success' && result.url) {
+                    window.open(result.url, '_blank');
+                } else {
+                    alert("Errore durante l'esportazione");
+                }
+            } catch (err) {
+                console.error("Export error", err);
+                alert("Errore di rete durante l'esportazione.");
+            } finally {
+                document.getElementById('loading-overlay').classList.add('hidden');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

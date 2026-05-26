@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Editor Menu</title>
+    <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-100 p-8 h-screen flex flex-col">
+    <div id="main-header" class="flex justify-between items-center mb-8 bg-gray-900 text-white p-4 rounded shadow">
+        <h1 class="header-title">🍔 Editor Menu e Categorie</h1>
+        <div class="flex space-x-4">
+            <button onclick="exportMenu()"
+                class="bg-yellow-500 hover:bg-yellow-400 px-4 py-2 rounded header-btn text-gray-900">Esporta
+                Menù</button>
+            <button onclick="openImportModal()"
+                class="bg-purple-600 hover:bg-purple-500 px-4 py-2 rounded header-btn text-white">Importa Menù</button>
+            <a href="/"
+                class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded header-btn text-white no-underline text-center">Torna
+                al POS</a>
+        </div>
+    </div>
+
+    <div class="flex gap-8 flex-grow overflow-hidden">
+        <!-- Categories Column -->
+        <div id="category-panel" class="bg-white p-6 rounded shadow flex flex-col">
+            <h2 class="editor-section-title mb-4 border-b pb-2">Categorie</h2>
+            <div id="cat-list" class="flex-grow overflow-y-auto space-y-2 mb-4"></div>
+            <div class="border-t pt-4">
+                <input type="text" id="new-cat-name" placeholder="Nome Nuova Categoria"
+                    class="w-full border p-2 rounded mb-2">
+                <button onclick="addCategory()"
+                    class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-500">Aggiungi
+                    Categoria</button>
+            </div>
+        </div>
+
+        <!-- Menu Items Column -->
+        <div id="menu-editor-panel" class="bg-white p-6 rounded shadow flex flex-col">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="editor-section-title">Articoli Menu</h2>
+                <button onclick="openItemEditorModal()"
+                    class="bg-blue-600 hover:bg-blue-500 px-4 py-2 rounded font-bold text-white shadow">+ Aggiungi
+                    Articolo</button>
+            </div>
+            <div id="menu-list" class="flex-grow overflow-y-auto gap-4 mb-4 grid grid-cols-2 content-start"></div>
+        </div>
+    </div>
+
+    <!-- Item Editor Modal -->
+    <div id="item-editor-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded shadow-lg w-2/3 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="editor-section-title text-xl font-bold text-gray-800">Aggiungi / Modifica Articolo</h3>
+                <button onclick="closeItemEditorModal()"
+                    class="text-gray-500 hover:text-red-500 font-bold text-2xl">&times;</button>
+            </div>
+            <input type="hidden" id="edit-item-id">
+
+            <div class="flex space-x-4 mb-4 bg-white p-2 border rounded items-center">
+                <span class="font-bold text-sm text-gray-700">Tipo:</span>
+                <label class="flex items-center space-x-1 cursor-pointer">
+                    <input type="radio" name="item_type" id="type-single" value="single" checked
+                        onchange="toggleItemType()">
+                    <span>Articolo Singolo</span>
+                </label>
+                <label class="flex items-center space-x-1 cursor-pointer">
+                    <input type="radio" name="item_type" id="type-combo" value="combo" onchange="toggleItemType()">
+                    <span>Menù (Combo)</span>
+                </label>
+            </div>
+
+            <div class="grid grid-cols-4 gap-4 mb-2">
+                <div class="col-span-3">
+                    <label class="block editor-input-label text-gray-500 mb-1">Descrizione Articolo</label>
+                    <input type="text" id="item-desc" placeholder="es. Panino Bacon" class="w-full border p-2 rounded">
+                </div>
+                <div class="col-span-1">
+                    <label class="block editor-input-label text-gray-500 mb-1">Prezzo (€)</label>
+                    <input type="number" id="item-price" placeholder="10.50" step="0.50"
+                        class="w-full border p-2 rounded">
+                </div>
+                <div class="col-span-2">
+                    <label class="block editor-input-label text-gray-500 mb-1">Immagine (URL)</label>
+                    <input type="text" id="item-img" placeholder="/static/logo.png" class="w-full border p-2 rounded">
+                </div>
+                <div class="col-span-2">
+                    <label class="block editor-input-label text-gray-500 mb-1">Categoria Menu</label>
+                    <select id="item-cat" class="w-full border p-2 rounded bg-white">
+                        <option value="">-- Seleziona Categoria --</option>
+                    </select>
+                </div>
+                <div class="col-span-4">
+                    <label class="block editor-input-label text-gray-500 mb-1">Quantità Massima Articoli (Lascia vuoto per illimitato)</label>
+                    <input type="number" id="item-max-items" placeholder="es. 50" class="w-full border p-2 rounded">
+                </div>
+                <div class="col-span-4">
+                    <label class="block editor-input-label text-gray-500 mb-1">Ordine di Visualizzazione (numero più basso = prima)</label>
+                    <input type="number" id="item-sort-order" placeholder="es. 0" value="0" class="w-full border p-2 rounded">
+                </div>
+            </div>
+
+            <div id="single-config" class="mb-4">
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block editor-input-label text-gray-500 mb-1">Componenti Base (es. Carne:1.50,
+                            Formaggio:0.50)</label>
+                        <input type="text" id="item-comp" placeholder="es. Carne:1.50, Pancetta:1.00, Formaggio"
+                            class="w-full border p-2 rounded text-sm">
+                    </div>
+                    <div>
+                        <label class="block editor-input-label text-gray-500 mb-1">Aggiunte Opzionali (es. Uovo:1.00,
+                            Funghi:1.50)</label>
+                        <input type="text" id="item-additions" placeholder="es. Uovo:1.00, Maionese"
+                            class="w-full border p-2 rounded text-sm">
+                    </div>
+                </div>
+            </div>
+
+            <div id="combo-config" class="mb-4 hidden border p-4 rounded bg-gray-100">
+                <div class="flex justify-between items-center mb-2">
+                    <label class="block font-bold text-gray-700">Configurazione Slot Menù</label>
+                    <button onclick="addComboSlot()" class="bg-gray-300 px-2 py-1 rounded font-bold">+ Aggiungi
+                        Slot</button>
+                </div>
+                <div id="combo-slots-container" class="space-y-2">
+                </div>
+            </div>
+
+            <div class="flex space-x-2 mt-6 pt-4 border-t">
+                <button onclick="closeItemEditorModal()"
+                    class="bg-gray-400 text-white font-bold py-2 px-4 rounded hover:bg-gray-500">Annulla</button>
+                <button onclick="saveItem()"
+                    class="flex-grow bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-500">Salva
+                    Articolo</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Modal -->
+    <div id="import-modal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="bg-white p-6 rounded shadow-lg w-1/3">
+            <h2 class="modal-title mb-4">Importa Menù</h2>
+            <p class="text-sm text-gray-600 mb-4 bg-yellow-100 p-2 border-l-4 border-yellow-500">
+                L'importazione in modalità "Sostituisci" eliminerà tutto il menù attuale.
+            </p>
+            <input type="file" id="import-file" accept=".json" class="mb-4">
+
+            <div class="mb-4 space-y-2">
+                <label class="flex items-center space-x-2">
+                    <input type="radio" name="import_mode" value="replace" checked class="form-radio text-purple-600">
+                    <span class="font-bold text-red-600">Sostituisci intero menù (Cancella l'attuale)</span>
+                </label>
+                <label class="flex items-center space-x-2">
+                    <input type="radio" name="import_mode" value="append" class="form-radio text-purple-600">
+                    <span class="font-bold">Aggiungi agli elementi esistenti</span>
+                </label>
+            </div>
+
+            <div class="flex justify-end space-x-2 mt-6">
+                <button onclick="closeImportModal()"
+                    class="px-4 py-2 bg-gray-300 rounded font-bold hover:bg-gray-400">Annulla</button>
+                <button onclick="performImport()"
+                    class="px-4 py-2 bg-purple-600 text-white rounded font-bold hover:bg-purple-700">Importa</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let categories = [];
+        let menuItems = [];
+
+        async function init() {
+            await loadData();
+        }
+
+        async function loadData() {
+            const [cResp, mResp] = await Promise.all([fetch('/categories'), fetch('/menu')]);
+            categories = await cResp.json();
+            menuItems = await mResp.json();
+
+            renderCategories();
+            renderMenuItems();
+            updateCategoryDropdown();
+        }
+
+        function renderCategories() {
+            const list = document.getElementById('cat-list');
+            list.innerHTML = '';
+            categories.forEach(c => {
+                list.innerHTML += `
+                    <div class="flex justify-between items-center p-2 bg-gray-50 border rounded">
+                        <span class="editor-item-title capitalize">${c.name}</span>
+                        <button onclick="deleteCategory(${c.id})" class="text-red-500 font-bold px-2 py-1 bg-red-100 rounded hover:bg-red-200">X</button>
+                    </div>
+                `;
+            });
+        }
+
+        function updateCategoryDropdown() {
+            const sel = document.getElementById('item-cat');
+            sel.innerHTML = '<option value="">-- Seleziona Categoria --</option>';
+            categories.forEach(c => {
+                sel.innerHTML += `<option value="${c.name}">${c.name}</option>`;
+            });
+        }
+
+        async function addCategory() {
+            const name = document.getElementById('new-cat-name').value.trim();
+            if (!name) return;
+            const resp = await fetch('/categories', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: name.toLowerCase() })
+            });
+            if (resp.ok) {
+                document.getElementById('new-cat-name').value = '';
+                await loadData();
+            } else {
+                alert("Errore aggiunta categoria");
+            }
+        }
+
+        async function deleteCategory(id) {
+            if (!confirm("Eliminare categoria?")) return;
+            const resp = await fetch('/categories/' + id, { method: 'DELETE' });
+            if (resp.ok) loadData();
+        }
+
+        function renderMenuItems() {
+            const list = document.getElementById('menu-list');
+            list.innerHTML = '';
+            // Sort by sort_order then description for display
+            const sorted = [...menuItems].sort((a, b) => {
+                const oa = a.sort_order ?? 0;
+                const ob = b.sort_order ?? 0;
+                if (oa !== ob) return oa - ob;
+                return a.description.localeCompare(b.description);
+            });
+            sorted.forEach(item => {
+                const maxStr = item.max_items !== null && item.max_items !== undefined ? ` | Max: ${item.max_items}` : '';
+                const sortStr = ` | Ord: ${item.sort_order ?? 0}`;
+                list.innerHTML += `
+                    <div class="border p-2 rounded flex items-center bg-gray-50 hover:bg-gray-100 cursor-pointer" onclick='editItem(${JSON.stringify(item).replace(/"/g, "&quot;")})'>
+                        <img src="${item.image_url}" class="w-16 h-16 object-cover rounded mr-4">
+                        <div class="flex-grow">
+                            <div class="editor-item-title">${item.description}</div>
+                            <div class="editor-item-subtitle text-gray-500">Cat: ${item.category}${sortStr}${maxStr}</div>
+                            <div class="editor-item-subtitle font-mono text-green-600">€${item.price.toFixed(2)}</div>
+                        </div>
+                        <button onclick="deleteItem(${item.id}, event)" class="text-red-500 font-bold px-3 py-2 bg-red-100 rounded hover:bg-red-200 ml-2">X</button>
+                    </div>
+                `;
+            });
+        }
+
+        function toggleItemType() {
+            const isCombo = document.getElementById('type-combo').checked;
+            if (isCombo) {
+                document.getElementById('single-config').classList.add('hidden');
+                document.getElementById('combo-config').classList.remove('hidden');
+            } else {
+                document.getElementById('single-config').classList.remove('hidden');
+                document.getElementById('combo-config').classList.add('hidden');
+            }
+        }
+
+        function addComboSlot(selectedIds = []) {
+            const container = document.getElementById('combo-slots-container');
+            const idx = container.children.length + 1;
+            const div = document.createElement('div');
+            div.className = "border border-gray-300 p-2 rounded relative combo-slot-card bg-white";
+
+            const singleItems = menuItems.filter(i => !i.is_combo);
+            let checkboxesHtml = `<label class="flex items-center space-x-1 p-1 bg-yellow-50 rounded border">
+                <input type="checkbox" value="0" class="slot-item-cb" ${selectedIds.includes(0) ? 'checked' : ''}>
+                <span class="font-bold">Nessuna Scelta</span>
+            </label>`;
+
+            singleItems.forEach(i => {
+                const checked = selectedIds.includes(i.id) ? 'checked' : '';
+                checkboxesHtml += `<label class="flex items-center space-x-1 p-1 hover:bg-gray-50 rounded">
+                    <input type="checkbox" value="${i.id}" class="slot-item-cb" ${checked}>
+                    <span class="truncate" title="${i.description}">${i.description}</span>
+                </label>`;
+            });
+
+            div.innerHTML = `
+                <div class="flex justify-between items-center mb-2 border-b pb-1">
+                    <span class="font-bold text-gray-700">Slot ${idx}</span>
+                    <button onclick="this.closest('.combo-slot-card').remove()" class="text-red-500 font-bold px-2 py-1 bg-white border rounded hover:bg-red-50 text-xs">Rimuovi</button>
+                </div>
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-1 max-h-48 overflow-y-auto p-1 bg-gray-50 rounded border inner-shadow">
+                    ${checkboxesHtml}
+                </div>
+            `;
+            container.appendChild(div);
+        }
+
+        function openItemEditorModal() {
+            clearItemForm();
+            document.getElementById('item-editor-modal').classList.remove('hidden');
+        }
+
+        function closeItemEditorModal() {
+            document.getElementById('item-editor-modal').classList.add('hidden');
+        }
+
+        function editItem(item) {
+            document.getElementById('edit-item-id').value = item.id;
+            document.getElementById('item-desc').value = item.description;
+            document.getElementById('item-price').value = item.price;
+            document.getElementById('item-img').value = item.image_url;
+            document.getElementById('item-cat').value = item.category;
+            document.getElementById('item-comp').value = item.components || '';
+            document.getElementById('item-additions').value = item.additions || '';
+            document.getElementById('item-max-items').value = item.max_items !== null && item.max_items !== undefined ? item.max_items : '';
+            document.getElementById('item-sort-order').value = item.sort_order !== null && item.sort_order !== undefined ? item.sort_order : 0;
+
+            document.getElementById('combo-slots-container').innerHTML = '';
+            if (item.is_combo) {
+                document.getElementById('type-combo').checked = true;
+                let parsedSlots = [];
+                try { parsedSlots = JSON.parse(item.combo_items); } catch (e) { }
+                parsedSlots.forEach(slotArr => {
+                    addComboSlot(slotArr);
+                });
+            } else {
+                document.getElementById('type-single').checked = true;
+            }
+            toggleItemType();
+            document.getElementById('item-editor-modal').classList.remove('hidden');
+        }
+
+        function clearItemForm() {
+            document.getElementById('edit-item-id').value = '';
+            document.getElementById('item-desc').value = '';
+            document.getElementById('item-price').value = '';
+            document.getElementById('item-img').value = '';
+            document.getElementById('item-cat').value = '';
+            document.getElementById('item-comp').value = '';
+            document.getElementById('item-additions').value = '';
+            document.getElementById('item-max-items').value = '';
+            document.getElementById('item-sort-order').value = '0';
+            document.getElementById('combo-slots-container').innerHTML = '';
+            document.getElementById('type-single').checked = true;
+            toggleItemType();
+        }
+
+        async function saveItem() {
+            const id = document.getElementById('edit-item-id').value;
+            const isCombo = document.getElementById('type-combo').checked;
+
+            let comboArr = [];
+            if (isCombo) {
+                const slots = document.querySelectorAll('.combo-slot-card');
+                slots.forEach(slot => {
+                    const checked = Array.from(slot.querySelectorAll('.slot-item-cb:checked')).map(cb => parseInt(cb.value));
+                    if (checked.length > 0) {
+                        comboArr.push(checked);
+                    }
+                });
+            }
+
+            const maxItemsInput = document.getElementById('item-max-items').value.trim();
+            const max_items = (maxItemsInput === '' || isNaN(maxItemsInput)) ? null : parseInt(maxItemsInput);
+            const sortOrderInput = document.getElementById('item-sort-order').value.trim();
+            const sort_order = (sortOrderInput === '' || isNaN(sortOrderInput)) ? 0 : parseInt(sortOrderInput);
+
+            const payload = {
+                description: document.getElementById('item-desc').value,
+                price: parseFloat(document.getElementById('item-price').value) || 0,
+                image_url: document.getElementById('item-img').value,
+                category: document.getElementById('item-cat').value,
+                components: document.getElementById('item-comp').value,
+                additions: document.getElementById('item-additions').value,
+                is_combo: isCombo,
+                combo_items: JSON.stringify(comboArr),
+                max_items: max_items,
+                sort_order: sort_order
+            };
+
+            if (!payload.description || !payload.category) return alert("Descrizione e Categoria obbligatori.");
+
+            let url = '/menu';
+            let method = 'POST';
+            if (id) {
+                url = '/menu/' + id;
+                method = 'PUT';
+            }
+
+            const resp = await fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+
+            if (resp.ok) {
+                closeItemEditorModal();
+                loadData();
+            } else {
+                alert("Errore salvataggio articolo");
+            }
+        }
+
+        async function deleteItem(id, event) {
+            event.stopPropagation();
+            if (!confirm("Eliminare articolo?")) return;
+            const resp = await fetch('/menu/' + id, { method: 'DELETE' });
+            if (resp.ok) {
+                clearItemForm();
+                loadData();
+            }
+        }
+
+        async function exportMenu() {
+            try {
+                const resp = await fetch('/export/menu_json');
+                const data = await resp.json();
+                const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(data, null, 2));
+                const downloadAnchorNode = document.createElement('a');
+                downloadAnchorNode.setAttribute("href", dataStr);
+                downloadAnchorNode.setAttribute("download", "menu_export.json");
+                document.body.appendChild(downloadAnchorNode);
+                downloadAnchorNode.click();
+                downloadAnchorNode.remove();
+            } catch (err) {
+                alert("Errore esportazione menù");
+            }
+        }
+
+        function openImportModal() {
+            document.getElementById('import-modal').classList.remove('hidden');
+            document.getElementById('import-file').value = '';
+        }
+
+        function closeImportModal() {
+            document.getElementById('import-modal').classList.add('hidden');
+        }
+
+        async function performImport() {
+            const fileInput = document.getElementById('import-file');
+            if (fileInput.files.length === 0) {
+                return alert("Seleziona un file JSON.");
+            }
+            const mode = document.querySelector('input[name="import_mode"]:checked').value;
+
+            if (mode === 'replace') {
+                if (!confirm("Sei veramente sicuro? Tutti gli articoli e le categorie attuali verranno eliminati!")) {
+                    return;
+                }
+            }
+
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = async function (e) {
+                try {
+                    const jsonData = JSON.parse(e.target.result);
+                    if (!jsonData.categories || !jsonData.items) {
+                        return alert("Il file JSON non sembra essere nel formato corretto. Mancano 'categories' o 'items'.");
+                    }
+
+                    const payload = {
+                        mode: mode,
+                        data: jsonData
+                    };
+
+                    const resp = await fetch('/import/menu_json', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+
+                    if (resp.ok) {
+                        alert("Menù importato con successo!");
+                        closeImportModal();
+                        clearItemForm();
+                        loadData();
+                    } else {
+                        const err = await resp.json();
+                        alert("Errore importazione: " + (err.detail || ""));
+                    }
+
+                } catch (err) {
+                    alert("Errore lettura file: file JSON non valido.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        init();
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,459 @@
+/** RESET CSS **/
+article,
+aside,
+details,
+figcaption,
+figure,
+footer,
+header,
+hgroup,
+menu,
+nav,
+section,
+main {
+    display: block;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    border: 0;
+    list-style: none;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+}
+
+
+/* Ensure full viewport height on mobile/tablet */
+html {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+body {
+    height: 100dvh;
+    overflow: hidden;
+}
+
+
+/* ==========================================================================
+   COMMON STYLES (Used across multiple HTML files)
+   ========================================================================== */
+
+/* Main Header */
+#main-header {
+    /* Dimensions and spacing handled by Tailwind flex, but we define text here */
+}
+
+.header-title {
+    font-size: 1.5rem;
+    /* text-2xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.header-btn {
+    font-weight: 700;
+    /* font-bold */
+    font-size: 1.2rem;
+    /* Add responsiveness if needed */
+}
+
+/* Modals */
+.modal-title {
+    font-size: 1.875rem;
+    /* text-3xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.modal-btn {
+    font-size: 1.25rem;
+    /* text-xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+/* On large screens keep aspect-square */
+@media (min-width: 1280px) {
+    .action-bar-btn {
+        aspect-ratio: 1 / 1;
+    }
+}
+
+/* ==========================================================================
+   INDEX.HTML
+   ========================================================================== */
+
+/* Structure */
+#content-row {
+    min-height: 0;  /* critical: allows flex children to shrink below natural height */
+}
+
+#cart-panel {
+    width: 33.333333%;
+    /* w-1/3 */
+    min-height: 0;
+    overflow: hidden;
+}
+
+#main-panel {
+    width: 66.666667%;
+    /* w-2/3 */
+    overflow: hidden;
+    min-height: 0;
+}
+
+#menu-col {
+    min-height: 0;  /* allows menu-grid to shrink and action-bar to stay visible */
+    overflow: hidden;
+}
+
+#category-sidebar {
+    width: 8rem;
+    font-size: 1.25rem;
+    /* w-32 */
+}
+
+#category-sidebar>button {
+    width: 6rem;
+    height: 6rem;
+}
+
+@media (min-width: 768px) and (max-width: 1024px) {
+    #cart-panel {
+        width: 28%;
+    }
+}
+
+/* Cart Panel Typography */
+.cart-header-title {
+    font-size: 1.25rem;
+    /* text-xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.cart-input-id {
+    width: 8rem;
+    /* w-24 */
+    font-size: 1.125rem;
+    /* text-lg */
+}
+
+.cart-item-title {
+    font-size: 1.25rem;
+    /* text-xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.cart-item-details {
+    font-size: 1rem;
+    /* text-base / text-m */
+}
+
+.cart-item-price {
+    font-size: 1.25rem;
+    /* text-xl */
+}
+
+.cart-summary-text {
+    font-size: 1.25rem;
+    /* text-xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.cart-total-text {
+    font-size: 2rem;
+    /* text-3xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.cart-submit-btn {
+    font-size: 1.5rem;
+    /* text-2xl */
+    font-weight: 900;
+    /* font-black */
+}
+
+/* Menu Panel Typography */
+.cat-btn-text {
+    font-weight: 700;
+    /* font-bold */
+}
+
+.menu-item-title {
+    font-size: 1.375rem;
+    /* text-lg */
+    font-weight: 900;
+    /* font-black */
+}
+
+.menu-item-price {
+    font-size: 1.5rem;
+    /* text-xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+/* Action Bar Typography */
+.action-bar-btn {
+    font-size: 1.5rem;
+    /* text-2xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.action-bar-subtext {
+    font-size: 1.5rem;
+    /* text-2xl */
+}
+
+/* Success Overlay Typography */
+.success-title {
+    font-size: 3.75rem;
+    /* text-6xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.success-subtitle {
+    font-size: 1.25rem;
+    /* text-xl */
+}
+
+.success-order-id {
+    font-size: 1.875rem;
+    /* text-3xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+/* Numpad Typography */
+.numpad-btn {
+    font-size: 2.25rem;
+    /* text-4xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.numpad-input {
+    font-size: 2.25rem;
+    /* text-4xl */
+}
+
+#btn-disc button {
+    font-size: 1.5rem;
+    line-height: 2rem;
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+}
+
+/* ==========================================================================
+   ORDERS.HTML & ORDERS_COMPLETED.HTML
+   ========================================================================== */
+
+/* Order List Structure */
+.order-list-container {
+    /* flex-grow overflow-y-auto */
+}
+
+/* Order Item Typography */
+.order-list-header {
+    font-size: 1.25rem;
+    /* text-xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.order-item-id {
+    font-size: 1.875rem;
+    /* text-3xl */
+    font-weight: 900;
+    /* font-black */
+}
+
+.order-item-date {
+    font-size: 1.125rem;
+    /* text-lg */
+}
+
+.order-item-badge {
+    font-size: 1rem;
+    /* text-base */
+    font-weight: 700;
+    /* font-bold */
+}
+
+/* Utilities */
+.hide-spinners::-webkit-inner-spin-button,
+.hide-spinners::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.hide-spinners {
+    -moz-appearance: textfield;
+}
+
+.order-item-discount {
+    font-size: 1rem;
+    /* text-base */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.order-item-total {
+    font-size: 1.875rem;
+    /* text-3xl */
+    font-weight: 900;
+    /* font-black */
+}
+
+.order-detail-title {
+    font-size: 1rem;
+    /* text-base */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.order-detail-price {
+    /* text size base */
+}
+
+/* ==========================================================================
+   EDITOR.HTML
+   ========================================================================== */
+
+/* Structure */
+#category-panel {
+    width: 33.333333%;
+    /* w-1/3 */
+    font-size: 1.4rem;
+}
+
+#menu-editor-panel {
+    width: 66.666667%;
+    /* w-2/3 */
+    font-size: 1.4rem;
+}
+
+#combo-config {
+    font-size: 1.2rem;
+}
+
+/* Editor Typography */
+.editor-section-title {
+    font-size: 1.25rem;
+    /* text-xl */
+    font-weight: 700;
+    /* font-bold */
+}
+
+.editor-item-title {
+    font-weight: 700;
+    /* font-bold */
+}
+
+.editor-item-subtitle {
+    font-size: 0.875rem;
+    /* text-sm */
+}
+
+.editor-input-label {
+    font-size: 0.75rem;
+    /* text-xs */
+    font-weight: 700;
+    /* font-bold */
+}
+
+
+/* ==========================================================================
+   RESPONSIVE OVERRIDES
+   ========================================================================== */
+
+
+/* Tablets */
+@media (min-width: 768px) and (max-width: 1024px) {
+
+    .header-title {
+        font-size: 1.25rem;
+    }
+
+    /* Shrink header nav buttons on tablet */
+    .header-btn {
+        font-size: 0.85rem;
+        font-weight: 600;
+        padding-top: 0.25rem;
+        padding-bottom: 0.25rem;
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
+
+    #main-header span {
+        font-size: 0.85rem;
+    }
+
+    #user-selector {
+        font-size: 0.85rem;
+        padding: 0.15rem 0.4rem;
+    }
+
+    .cart-total-text {
+        font-size: 1.5rem;
+    }
+
+    /* Make action bar buttons shorter so the bar doesn't get clipped */
+    .action-bar-btn {
+        aspect-ratio: auto !important;
+        font-size: 1rem;
+        padding-top: 0.35rem;
+        padding-bottom: 0.35rem;
+    }
+
+    .action-bar-subtext {
+        font-size: 1rem;
+    }
+
+    /* Reduce the action bar container own padding */
+    #action-bar {
+        padding: 0.4rem 0.75rem;
+    }
+
+    /* Widen the item/personalization modal inner panel on tablet */
+    #item-modal>div {
+        width: 90% !important;
+    }
+
+    #cart-panel {
+        width: 40%;
+    }
+
+    #main-panel {
+        width: 60%;
+    }
+
+    #category-sidebar {
+        width: 7rem;
+    }
+}
+
+/* Phones */
+@media (max-width: 768px) {
+
+    /* Stack panels vertically on very small screens */
+    #cart-panel,
+    #main-panel,
+    #category-panel,
+    #menu-editor-panel {
+        width: 100%;
+    }
+
+    /* You can continue tweaking specific phone sizes here */
+}
