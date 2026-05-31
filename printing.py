@@ -21,6 +21,84 @@ def init(session_local, user_model, settings_model, menu_item_model):
     SystemSettings = settings_model
     MenuItem = menu_item_model
 
+
+# --- Performance Caching ---
+_menu_cache_lock = threading.Lock()
+_bibite_names_cache = None
+
+_settings_cache_lock = threading.Lock()
+_system_settings_cache = None
+
+_user_cache_lock = threading.Lock()
+_user_settings_cache = {}
+
+def invalidate_menu_cache():
+    global _bibite_names_cache
+    with _menu_cache_lock:
+        _bibite_names_cache = None
+
+def invalidate_settings_cache():
+    global _system_settings_cache
+    with _settings_cache_lock:
+        _system_settings_cache = None
+
+def invalidate_user_cache(user_id=None):
+    global _user_settings_cache
+    with _user_cache_lock:
+        if user_id is None:
+            _user_settings_cache.clear()
+        elif user_id in _user_settings_cache:
+            del _user_settings_cache[user_id]
+
+def get_bibite_names():
+    global _bibite_names_cache
+    with _menu_cache_lock:
+        if _bibite_names_cache is None:
+            db = SessionLocal()
+            try:
+                items = db.query(MenuItem).filter(MenuItem.category == 'bibite', MenuItem.is_active == True).all()
+                _bibite_names_cache = {bi.description for bi in items}
+            finally:
+                db.close()
+        return _bibite_names_cache
+
+def get_system_settings():
+    global _system_settings_cache
+    with _settings_cache_lock:
+        if _system_settings_cache is None:
+            db = SessionLocal()
+            try:
+                settings = db.query(SystemSettings).first()
+                if settings:
+                    _system_settings_cache = {
+                        "kitchen_printer_protocol": settings.kitchen_printer_protocol,
+                        "kitchen_printer_ip": settings.kitchen_printer_ip
+                    }
+                else:
+                    _system_settings_cache = {}
+            finally:
+                db.close()
+        return _system_settings_cache
+
+def get_user_settings(user_id):
+    global _user_settings_cache
+    with _user_cache_lock:
+        if user_id not in _user_settings_cache:
+            db = SessionLocal()
+            try:
+                user = db.query(User).filter(User.id == user_id).first()
+                if user:
+                    _user_settings_cache[user_id] = {
+                        "printer_protocol": user.printer_protocol,
+                        "printer_ip": user.printer_ip
+                    }
+                else:
+                    _user_settings_cache[user_id] = None
+            finally:
+                db.close()
+        return _user_settings_cache[user_id]
+# ---------------------------
+
 # Build line with splitted text aligned left and right
 def row_left_right(label: str, value: str, width: int = 48) -> str:
     """Return a left/right aligned string padded to `width` characters."""
@@ -29,19 +107,16 @@ def row_left_right(label: str, value: str, width: int = 48) -> str:
 
 
 def print_bill(order_id: int, payload: dict):
-    db = SessionLocal()
-    
     # We pass the active user_id inside payload from frontend to find out who printed it
     active_user_id = payload.get('user_id', 1)
-    user = db.query(User).filter(User.id == active_user_id).first()
-    settings = db.query(SystemSettings).first()
-    db.close()
+    user_settings = get_user_settings(active_user_id)
     
     # Retrieve correct protocol
     protocol = "escpos"
-    if user:
-        protocol = user.printer_protocol
-        printer_ip = user.printer_ip
+    printer_ip = None
+    if user_settings:
+        protocol = user_settings.get("printer_protocol", "escpos")
+        printer_ip = user_settings.get("printer_ip")
 
     if not printer_ip:
         printer_ip = "10.0.0.200"
@@ -238,15 +313,13 @@ def print_bill(order_id: int, payload: dict):
 
 
 def print_kitchen_receipt(order_id: int, payload: dict):
-    db = SessionLocal()
-    settings = db.query(SystemSettings).first()
-    db.close()
+    settings = get_system_settings()
 
-    if settings and settings.kitchen_printer_protocol == "xon/xoff":
+    if settings and settings.get("kitchen_printer_protocol") == "xon/xoff":
         print("XON/XOFF protocol selected. Kitchen printing bypassed.")
         return False, "Protocollo XON/XOFF non supportato"
 
-    printer_ip = settings.kitchen_printer_ip if settings and settings.kitchen_printer_ip else "10.0.0.200"
+    printer_ip = settings.get("kitchen_printer_ip") if settings and settings.get("kitchen_printer_ip") else "10.0.0.200"
     port = 9100
 
     try:
@@ -351,15 +424,8 @@ def print_kitchen_receipt(order_id: int, payload: dict):
             # Print second bill with "bibite" only
             # This includes standalone bibite AND bibite extracted from combo_choices
 
-            # Build a set of all bibite item names from the DB
-            db2 = SessionLocal()
-            bibite_names = set()
-            try:
-                bibite_items = db2.query(MenuItem).filter(MenuItem.category == 'bibite', MenuItem.is_active == True).all()
-                for bi in bibite_items:
-                    bibite_names.add(bi.description)
-            finally:
-                db2.close()
+            # Fetch bibite names from cache
+            bibite_names = get_bibite_names()
 
             # Collect all bibite: standalone items + extracted from combo_choices
             bibite_list = []

@@ -358,6 +358,7 @@ def update_settings(payload: SettingsUpdate):
         settings.kitchen_printer_protocol = payload.kitchen_printer_protocol
         settings.next_order_number = payload.next_order_number
         db.commit()
+        printing.invalidate_settings_cache()
         return {"status": "success"}
     except Exception as e:
         db.rollback()
@@ -429,6 +430,7 @@ def update_user_cart(user_id: int, payload: UserStateUpdate):
         user.printer_ip = payload.printer_ip
         user.printer_protocol = payload.printer_protocol
         db.commit()
+        printing.invalidate_user_cache(user_id)
 
         # Trigger customer display update asynchronously
         try:
@@ -542,6 +544,7 @@ def create_menu_item(payload: MenuItemCreate):
     item = MenuItem(**payload.dict())
     db.add(item)
     db.commit()
+    printing.invalidate_menu_cache()
     db.close()
     return {"status": "success"}
 
@@ -552,6 +555,7 @@ def delete_menu_item(item_id: int):
     if item:
         item.is_active = False
         db.commit()
+        printing.invalidate_menu_cache()
     db.close()
     return {"status": "success"}
 
@@ -572,6 +576,7 @@ def update_menu_item(item_id: int, payload: MenuItemCreate):
         item.max_items = payload.max_items
         item.sort_order = payload.sort_order
         db.commit()
+    printing.invalidate_menu_cache()
     db.close()
     return {"status": "success"}
 
@@ -845,6 +850,7 @@ def import_menu_json(payload: ImportMenuPayload):
             db.execute(text("DELETE FROM categories"))
             db.execute(text("DELETE FROM sqlite_sequence WHERE name='categories'"))
             db.commit()
+        printing.invalidate_menu_cache()
 
         existing_names = {name for (name,) in db.query(Category.name).all()}
             
