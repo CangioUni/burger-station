@@ -7,6 +7,10 @@ from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, 
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import text
+from sqlalchemy import inspect
+from escpos.printer import Network
+from stats_exporter import StatsExporter
+from fpdf import FPDF
 import datetime
 from zoneinfo import ZoneInfo
 import socket
@@ -14,6 +18,7 @@ import asyncio
 import time
 import json
 import threading
+import os
 
 ROME_TZ = ZoneInfo("Europe/Rome")
 import printing
@@ -101,7 +106,6 @@ Base.metadata.create_all(bind=engine)
 # Add is_active column if it doesn't exist
 db = SessionLocal()
 try:
-    from sqlalchemy import text
     db.execute(text("ALTER TABLE menu_items ADD COLUMN is_active BOOLEAN DEFAULT 1"))
     db.commit()
 except Exception:
@@ -112,7 +116,6 @@ finally:
 
 try:
     db = SessionLocal()
-    from sqlalchemy import text
     db.execute(text("ALTER TABLE order_items ADD COLUMN discount FLOAT DEFAULT 0.0"))
     db.commit()
 except Exception:
@@ -122,7 +125,6 @@ finally:
 
 try:
     db = SessionLocal()
-    from sqlalchemy import text
     db.execute(text("ALTER TABLE order_items ADD COLUMN discount_type VARCHAR DEFAULT '%'"))
     db.commit()
 except Exception:
@@ -131,7 +133,6 @@ finally:
     db.close()
 
 # Add column 'additions' if missing
-from sqlalchemy import inspect
 inspector = inspect(engine)
 if "menu_items" in inspector.get_table_names():
     columns = [c["name"] for c in inspector.get_columns("menu_items")]
@@ -364,8 +365,6 @@ def update_settings(payload: SettingsUpdate):
         raise HTTPException(status_code=500, detail=str(e))
     finally:
         db.close()
-
-from escpos.printer import Network
 
 @app.get("/test-printer")
 def test_printer(ip: str, port: int = 9100):
@@ -901,8 +900,6 @@ def delete_all_orders():
         db.close()
     return {"status": "success"}
 
-from stats_exporter import StatsExporter
-
 @app.get("/api/stats/days")
 def get_stats_days():
     exporter = StatsExporter(session_factory=SessionLocal)
@@ -924,7 +921,6 @@ def export_stats_excel(payload: dict = Body(...)):
     exporter = StatsExporter(session_factory=SessionLocal)
     stats = exporter.generate_stats(day)
 
-    import os
     os.makedirs("static/export", exist_ok=True)
     excel_path = f"static/export/stats_{day}.xlsx"
     exporter.export_to_excel(stats, excel_path)
@@ -940,7 +936,6 @@ def export_stats_pdf(payload: dict = Body(...)):
     exporter = StatsExporter(session_factory=SessionLocal)
     stats = exporter.generate_stats(day)
 
-    import os
     os.makedirs("static/export", exist_ok=True)
     pdf_path = f"static/export/stats_{day}.pdf"
     exporter.export_to_pdf(stats, pdf_path)
