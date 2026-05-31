@@ -187,13 +187,26 @@
             updateCategoryDropdown();
         }
 
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g,
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
+        }
+
         function renderCategories() {
             const list = document.getElementById('cat-list');
             list.innerHTML = '';
             categories.forEach(c => {
                 list.innerHTML += `
                     <div class="flex justify-between items-center p-2 bg-gray-50 border rounded">
-                        <span class="editor-item-title capitalize">${c.name}</span>
+                        <span class="editor-item-title capitalize">${escapeHTML(c.name)}</span>
                         <button onclick="deleteCategory(${c.id})" class="text-red-500 font-bold px-2 py-1 bg-red-100 rounded hover:bg-red-200">X</button>
                     </div>
                 `;
@@ -247,8 +260,8 @@
                     <div class="border p-2 rounded flex items-center bg-gray-50 hover:bg-gray-100 cursor-pointer" onclick='editItem(${JSON.stringify(item).replace(/"/g, "&quot;")})'>
                         <img src="${item.image_url}" class="w-16 h-16 object-cover rounded mr-4">
                         <div class="flex-grow">
-                            <div class="editor-item-title">${item.description}</div>
-                            <div class="editor-item-subtitle text-gray-500">Cat: ${item.category}${sortStr}${maxStr}</div>
+                            <div class="editor-item-title">${escapeHTML(item.description)}</div>
+                            <div class="editor-item-subtitle text-gray-500">Cat: ${escapeHTML(item.category)}${sortStr}${maxStr}</div>
                             <div class="editor-item-subtitle font-mono text-green-600">€${item.price.toFixed(2)}</div>
                         </div>
                         <button onclick="deleteItem(${item.id}, event)" class="text-red-500 font-bold px-3 py-2 bg-red-100 rounded hover:bg-red-200 ml-2">X</button>
