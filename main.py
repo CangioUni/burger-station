@@ -3,7 +3,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import Optional
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, or_
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import text
@@ -641,6 +641,42 @@ def create_order(payload: dict = Body(...)):
                 is_new_order = True
 
             new_items_for_kitchen = []
+
+            # --- Bulk Load Menu Items to Avoid N+1 ---
+            item_ids_to_fetch = set()
+            item_descs_to_fetch = set()
+
+            for item in payload['items']:
+                if item.get('id'):
+                    item_ids_to_fetch.add(item['id'])
+                if item.get('description'):
+                    item_descs_to_fetch.add(item['description'])
+
+                combo_choices_str = item.get('combo_choices', '')
+                if combo_choices_str:
+                    for choice in combo_choices_str.split(','):
+                        choice = choice.strip()
+                        if not choice:
+                            continue
+                        base_desc = choice.split('[')[0].strip()
+                        if base_desc and base_desc != 'Nessuna Scelta':
+                            item_descs_to_fetch.add(base_desc)
+
+            menu_items_by_id = {}
+            menu_items_by_desc = {}
+            if item_ids_to_fetch or item_descs_to_fetch:
+                filters = []
+                if item_ids_to_fetch:
+                    filters.append(MenuItem.id.in_(list(item_ids_to_fetch)))
+                if item_descs_to_fetch:
+                    filters.append(MenuItem.description.in_(list(item_descs_to_fetch)))
+
+                bulk_items = db.query(MenuItem).filter(or_(*filters)).all()
+                for mi in bulk_items:
+                    menu_items_by_id[mi.id] = mi
+                    menu_items_by_desc[mi.description] = mi
+            # -----------------------------------------
+
             for item in payload['items']:
                 is_sent = item.get('_is_sent_to_kitchen', False)
                 if not is_sent:
@@ -660,10 +696,11 @@ def create_order(payload: dict = Body(...)):
 
                 # Update max items ordered counter for the ordered item itself
                 menu_item = None
-                if item.get('id'):
-                    menu_item = db.query(MenuItem).filter(MenuItem.id == item['id']).first()
-                if not menu_item:
-                    menu_item = db.query(MenuItem).filter(MenuItem.description == item['description']).first()
+                if item.get('id') and item['id'] in menu_items_by_id:
+                    menu_item = menu_items_by_id[item['id']]
+                elif item.get('description') in menu_items_by_desc:
+                    menu_item = menu_items_by_desc[item['description']]
+
                 if menu_item and menu_item.max_items is not None:
                     if menu_item.max_items - menu_item.ordered_count > 0:
                         menu_item.ordered_count += 1
@@ -679,9 +716,8 @@ def create_order(payload: dict = Body(...)):
                         base_desc = choice.split('[')[0].strip()
                         if not base_desc or base_desc == 'Nessuna Scelta':
                             continue
-                        sub_menu_item = db.query(MenuItem).filter(
-                            MenuItem.description == base_desc
-                        ).first()
+
+                        sub_menu_item = menu_items_by_desc.get(base_desc)
                         if sub_menu_item and sub_menu_item.max_items is not None:
                             if sub_menu_item.max_items - sub_menu_item.ordered_count > 0:
                                 sub_menu_item.ordered_count += 1
