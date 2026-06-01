@@ -500,6 +500,20 @@
     <div id="toast-container" class="fixed top-4 right-4 z-50 flex flex-col space-y-3 pointer-events-none"></div>
 
     <script>
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g,
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
+        }
+
         function showToast(title, message, isSuccess) {
             const container = document.getElementById('toast-container');
             if (!container) return;
@@ -542,7 +556,7 @@
             const catSidebar = document.getElementById('category-sidebar');
             let catHtml = '';
             categoriesData.forEach(c => {
-                catHtml += `<button onclick="setCategory('${c.name}')" class="w-20 h-20 bg-white rounded-lg shadow cat-btn-text hover:bg-yellow-100 flex items-center justify-center text-center capitalize">${c.name}</button>`;
+                catHtml += `<button onclick="setCategory('${c.name}')" class="w-20 h-20 bg-white rounded-lg shadow cat-btn-text hover:bg-yellow-100 flex items-center justify-center text-center capitalize">${escapeHTML(c.name)}</button>`;
             });
             catSidebar.innerHTML = catHtml;
 
@@ -843,7 +857,7 @@
                 html += `
                     <button onclick="addToCart(${JSON.stringify(item).replace(/"/g, '&quot;')})" class="bg-white p-2 rounded shadow hover:shadow-lg flex flex-col items-center justify-center aspect-square">
                         <img src="${item.image_url}" class="w-full h-1/2 object-cover rounded mb-2">
-                        <span class="menu-item-title block ${titleColorClass} leading-tight w-full truncate">${item.description}${remainingHtml}</span>
+                        <span class="menu-item-title block ${titleColorClass} leading-tight w-full truncate">${escapeHTML(item.description)}${remainingHtml}</span>
                         <span class="text-green-600 menu-item-price font-mono mt-1">€${item.price.toFixed(2)}</span>
                     </button>`;
             });
@@ -1261,7 +1275,7 @@
                     });
                 }
                 const ingredText = ingLabels.length > 0 ? `<div class="cart-item-details text-blue-600">${ingLabels.join(', ')}</div>` : '';
-                const notesText = item.notes ? `<div class="cart-item-details text-gray-500 italic">Note: ${item.notes}</div>` : '';
+                const notesText = item.notes ? `<div class="cart-item-details text-gray-500 italic">Note: ${escapeHTML(item.notes)}</div>` : '';
                 let itemDiscountHtml = '';
                 let itemDiscountAmount = 0;
                 let originalItemPrice = item.price;
@@ -1288,7 +1302,7 @@
 
                 let comboHtml = '';
                 if (item.combo_choices && item.combo_choices.length > 0) {
-                    comboHtml = item.combo_choices.map(c => `<div class="cart-item-details text-purple-700 pl-2">&bull; ${c}</div>`).join('');
+                    comboHtml = item.combo_choices.map(c => `<div class="cart-item-details text-purple-700 pl-2">&bull; ${escapeHTML(c)}</div>`).join('');
                 }
 
                 container.innerHTML += `
@@ -1297,7 +1311,7 @@
                             ☰
                         </div>
                         <div class="text-xl flex-grow cursor-pointer" onclick="openItemModal('${item.cart_id}')">
-                            <div class="cart-item-title text-black">${item.description}${item.combo_choices && item.combo_choices.length > 0 ? ':' : ''}</div>
+                            <div class="cart-item-title text-black">${escapeHTML(item.description)}${item.combo_choices && item.combo_choices.length > 0 ? ':' : ''}</div>
                             ${comboHtml}
                             ${ingredText}
                             ${notesText}

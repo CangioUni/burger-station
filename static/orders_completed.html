@@ -24,6 +24,20 @@
     </div>
 
     <script>
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/[&<>'"]/g,
+                tag => ({
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    "'": '&#39;',
+                    '"': '&quot;'
+                }[tag])
+            );
+        }
+
         let orders = [];
 
         async function init() {
@@ -49,12 +63,12 @@
 
                 let itemsHtml = '';
                 o.items.forEach(i => {
-                    const ingrStr = i.ingredients ? `<div class="cart-item-details text-blue-600">${i.ingredients}</div>` : '';
-                    const notesStr = i.notes ? `<div class="cart-item-details text-gray-500 italic">Nota: ${i.notes}</div>` : '';
+                    const ingrStr = i.ingredients ? `<div class="cart-item-details text-blue-600">${escapeHTML(i.ingredients)}</div>` : '';
+                    const notesStr = i.notes ? `<div class="cart-item-details text-gray-500 italic">Nota: ${escapeHTML(i.notes)}</div>` : '';
 
                     let comboStr = '';
                     if (i.combo_choices) {
-                        comboStr = i.combo_choices.split(',').map(c => `<div class="cart-item-details text-purple-700 pl-3">&bull; ${c.trim()}</div>`).join('');
+                        comboStr = i.combo_choices.split(',').map(c => `<div class="cart-item-details text-purple-700 pl-3">&bull; ${escapeHTML(c.trim())}</div>`).join('');
                     }
 
                     itemsHtml += `
@@ -91,7 +105,7 @@
                         <div id="details-${o.id}" class="hidden p-4 bg-white border-t border-gray-200">
                             <h3 class="order-detail-title mb-2">Articoli dell'Ordine</h3>
                             ${itemsHtml}
-                            ${o.notes ? `<div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded"><span class="order-detail-title text-blue-800">Note Ordine:</span><p class="text-blue-900 mt-1">${o.notes}</p></div>` : ''}
+                            ${o.notes ? `<div class="mt-4 p-3 bg-blue-50 border border-blue-200 rounded"><span class="order-detail-title text-blue-800">Note Ordine:</span><p class="text-blue-900 mt-1">${escapeHTML(o.notes)}</p></div>` : ''}
                         </div>
                     </div>
                 `;
