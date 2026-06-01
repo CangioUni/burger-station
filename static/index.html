@@ -437,7 +437,10 @@
     <div id="payment-modal"
         class="hidden fixed inset-0 bg-black bg-opacity-75 flex flex-col items-center justify-center text-white z-50">
         <div class="bg-gray-800 p-8 rounded-lg w-1/3 min-w-[400px]">
-            <h2 class="modal-title mb-4 border-b border-gray-600 pb-2">Metodo di Pagamento</h2>
+            <div class="flex justify-between items-center mb-4 border-b border-gray-600 pb-2">
+                <h2 class="modal-title">Metodo di Pagamento</h2>
+                <div class="text-2xl font-bold text-green-400">Totale: <span id="payment-modal-total">€0.00</span></div>
+            </div>
 
             <div class="grid grid-cols-2 gap-4 mb-8 mt-4">
                 <button id="btn-pay-cash" onclick="selectPayment('Contanti')"
@@ -680,6 +683,9 @@
 
         function openPaymentModal() {
             if (cart.length === 0) return alert("Il carrello è vuoto");
+
+            const currentTotal = document.getElementById('cart-total').innerText;
+            document.getElementById('payment-modal-total').innerText = currentTotal;
 
             // Clear payment selection when modal is opened so nothing is selected by default
             state.payment_method = '';
@@ -1360,7 +1366,10 @@
             if (btnConferma) {
                 btnConferma.disabled = true;
                 btnConferma.classList.add('opacity-50', 'cursor-not-allowed');
-                btnConferma.innerText = "Elaborazione...";
+                btnConferma.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg> Elaborazione...`;
             }
 
             if (cart.length === 0) {
@@ -1387,7 +1396,12 @@
                         if (bResult.status === 'success') {
                             bancomatSuccess = true;
                         } else if (bResult.status === 'locked') {
-                            if (btnConferma) btnConferma.innerText = "ATTENDI...";
+                            if (btnConferma) {
+                                btnConferma.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg> ATTENDI BANCOMAT...`;
+                            }
                             await new Promise(r => setTimeout(r, 2000));
                         }
                     } catch (e) {
@@ -1404,7 +1418,12 @@
                         return;
                     }
                 }
-                if (btnConferma) btnConferma.innerText = "Elaborazione...";
+                if (btnConferma) {
+                    btnConferma.innerHTML = `<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+      </svg> Elaborazione...`;
+                }
             }
 
             closePaymentModal();
@@ -1546,7 +1565,13 @@
                     showToast("Errore", "Impossibile salvare l'ordine. Riprova.", false);
                 }
             } catch (err) {
-                showToast("Errore di Rete", "Il server non risponde o l'operazione è stata annullata. Errore: " + err.message, false);
+                if (err.message.includes("504") || err.message.includes("Timeout")) {
+                    showToast("Errore di Rete", "Stampante occupata o timeout del server.", false);
+                } else if (err.message.includes("409")) {
+                    showToast("Attesa", "Stampante attualmente occupata, riprova.", false);
+                } else {
+                    showToast("Errore di Rete", "Il server non risponde o l'operazione è stata annullata. Errore: " + err.message, false);
+                }
             } finally {
                 // Restore buttons
                 const btnPagaDopo = document.querySelector('button[onclick="checkout(false)"]');

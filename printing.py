@@ -3,7 +3,33 @@ import threading
 from zoneinfo import ZoneInfo
 from escpos.printer import Network
 
-printer_lock = threading.Lock()
+printer_locks = {}
+printer_locks_mutex = threading.Lock()
+
+def get_printer_lock(ip):
+    with printer_locks_mutex:
+        if ip not in printer_locks:
+            printer_locks[ip] = threading.Lock()
+        return printer_locks[ip]
+
+def get_required_printers(payload, auto_print_main, auto_print_kitchen):
+    printers = set()
+    if auto_print_main:
+        active_user_id = payload.get('user_id', 1)
+        user_settings = get_user_settings(active_user_id)
+        printer_ip = None
+        if user_settings:
+            printer_ip = user_settings.get("printer_ip")
+        if not printer_ip:
+            printer_ip = "10.0.0.200"
+        printers.add(printer_ip)
+
+    if auto_print_kitchen:
+        settings = get_system_settings()
+        k_printer_ip = settings.get("kitchen_printer_ip") if settings and settings.get("kitchen_printer_ip") else "10.0.0.200"
+        printers.add(k_printer_ip)
+
+    return list(printers)
 
 ROME_TZ = ZoneInfo("Europe/Rome")
 
@@ -106,7 +132,7 @@ def row_left_right(label: str, value: str, width: int = 48) -> str:
     return label + " " * max(spaces, 1) + value
 
 
-def print_bill(order_id: int, payload: dict):
+def print_bill(order_id: int, payload: dict, lock_acquired: bool = False):
     # We pass the active user_id inside payload from frontend to find out who printed it
     active_user_id = payload.get('user_id', 1)
     user_settings = get_user_settings(active_user_id)
@@ -130,7 +156,14 @@ def print_bill(order_id: int, payload: dict):
 
     
     try:
-        with printer_lock:
+        lock = None
+        if not lock_acquired:
+            lock = get_printer_lock(printer_ip)
+            acquired = lock.acquire(timeout=30)
+            if not acquired:
+                return False, "Stampante occupata da troppo tempo. Riprova."
+
+        try:
             p = Network(printer_ip, port, profile="KR-306", timeout=2.0)
 
             try:
@@ -307,12 +340,15 @@ def print_bill(order_id: int, payload: dict):
 
             p.close()
             return True, "Scontrino stampato correttamente"
+        finally:
+            if lock:
+                lock.release()
     except Exception as e:
         print(f"Error printing bill: {e}")
         return False, f"Errore stampante scontrini: {str(e)}"
 
 
-def print_kitchen_receipt(order_id: int, payload: dict):
+def print_kitchen_receipt(order_id: int, payload: dict, lock_acquired: bool = False):
     settings = get_system_settings()
 
     if settings and settings.get("kitchen_printer_protocol") == "xon/xoff":
@@ -323,7 +359,14 @@ def print_kitchen_receipt(order_id: int, payload: dict):
     port = 9100
 
     try:
-        with printer_lock:
+        lock = None
+        if not lock_acquired:
+            lock = get_printer_lock(printer_ip)
+            acquired = lock.acquire(timeout=30)
+            if not acquired:
+                return False, "Stampante occupata da troppo tempo. Riprova."
+
+        try:
             p = Network(printer_ip, port, profile="KR-306", timeout=2.0)
 
             try:
@@ -490,6 +533,9 @@ def print_kitchen_receipt(order_id: int, payload: dict):
 
             p.close()
             return True, "Comanda cucina stampata correttamente"
+        finally:
+            if lock:
+                lock.release()
 
     except Exception as e:
         print(f"Error printing kitchen receipt: {e}")

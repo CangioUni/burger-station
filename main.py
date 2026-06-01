@@ -25,7 +25,7 @@ import printing
 from printing import print_bill, print_kitchen_receipt, row_left_right
 
 DATABASE_URL = "sqlite:///./orders.db"
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False, "timeout": 15})
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -585,9 +585,26 @@ order_creation_lock = threading.Lock()
 def create_order(payload: dict = Body(...)):
     db = SessionLocal()
     try:
-        with order_creation_lock:
-            kwargs = {
-                'total': payload['total'],
+        settings = db.query(SystemSettings).first()
+        auto_print_kitchen = settings.auto_print_kitchen if settings else True
+
+        user = db.query(User).filter(User.id == payload.get('user_id')).first()
+        auto_print_main = user.auto_print_main if user else True
+
+        # Pre-acquire printer locks before starting the DB transaction to avoid committing if printer is busy
+        required_printers = printing.get_required_printers(payload, auto_print_main, auto_print_kitchen)
+        acquired_locks = []
+        try:
+            for ip in required_printers:
+                lock = printing.get_printer_lock(ip)
+                if lock.acquire(timeout=30):
+                    acquired_locks.append(lock)
+                else:
+                    raise HTTPException(status_code=409, detail="Stampante occupata da troppo tempo. Riprova.")
+
+            with order_creation_lock:
+                kwargs = {
+                    'total': payload['total'],
                 'discount': payload['discount'],
                 'payment_method': payload['payment_method'],
                 'payment_status': payload.get('payment_status', True),
@@ -602,7 +619,6 @@ def create_order(payload: dict = Body(...)):
             else:
                 kwargs['payment_datetime'] = None
 
-            settings = db.query(SystemSettings).first()
             if not settings:
                 settings = SystemSettings(id=1, auto_print=True, next_order_number=1)
                 db.add(settings)
@@ -728,50 +744,55 @@ def create_order(payload: dict = Body(...)):
                                 sub_menu_item.ordered_count += 1
 
             # Clear the user's active cart after successfully placing the order
-            user = db.query(User).filter(User.id == kwargs['user_id']).first()
-            auto_print_main = True
             if user:
-                auto_print_main = user.auto_print_main
                 user.active_cart = "[]"
                 user.active_state = "{}"
 
             db.commit()
             
-        # Trigger customer display update for completed order (can be outside the lock)
-        try:
-            if main_loop and main_loop.is_running():
-                msg = f"Ordine #{order_number_str} completato!"
-                main_loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(trigger_display_state_change(kwargs['user_id'], [], 0.0, 0.0, msg))
-                )
-        except Exception as e:
-            print("Error triggering order completion display update:", e)
-        
-        auto_print_kitchen = settings.auto_print_kitchen if settings else True
-        bill_status = {"printed": False, "message": "Autostampa disabilitata"}
-        kitchen_status = {"printed": False, "message": "Non necessaria / disabilitata"}
+            # Trigger customer display update for completed order (can be outside the lock)
+            try:
+                if main_loop and main_loop.is_running():
+                    msg = f"Ordine #{order_number_str} completato!"
+                    main_loop.call_soon_threadsafe(
+                        lambda: asyncio.create_task(trigger_display_state_change(kwargs['user_id'], [], 0.0, 0.0, msg))
+                    )
+            except Exception as e:
+                print("Error triggering order completion display update:", e)
 
-        # We print the receipt for the customer if user setting is True
-        if auto_print_main:
-            b_ok, b_msg = print_bill(int(order_number_str) if order_number_str.isdigit() else order_id_to_use, payload)
-            bill_status = {"printed": b_ok, "message": b_msg}
-            if not b_ok and b_msg == "CARTA ESAURITA":
-                bill_status["paper_out"] = True
+            bill_status = {"printed": False, "message": "Autostampa disabilitata"}
+            kitchen_status = {"printed": False, "message": "Non necessaria / disabilitata"}
 
-        # Print to kitchen if system setting is True and it's a new order
-        if auto_print_kitchen:
-            k_ok, k_msg = print_kitchen_receipt(int(order_number_str) if order_number_str.isdigit() else order_id_to_use, {"items": new_items_for_kitchen, "table_number": payload.get("table_number", "Nessuno"), "takeaway": payload.get("takeaway", False), "notes": payload.get("notes", "")})
-            kitchen_status = {"printed": k_ok, "message": k_msg}
-            if not k_ok and k_msg == "CARTA ESAURITA":
-                kitchen_status["paper_out"] = True
-        
-        return {
-            "status": "success", 
-            "order_id": order_number_str, 
-            "auto_print": auto_print_main or auto_print_kitchen,
-            "bill_status": bill_status,
-            "kitchen_status": kitchen_status
-        }
+            # We print the receipt for the customer if user setting is True
+            if auto_print_main:
+                b_ok, b_msg = print_bill(int(order_number_str) if order_number_str.isdigit() else order_id_to_use, payload, lock_acquired=True)
+                bill_status = {"printed": b_ok, "message": b_msg}
+                if not b_ok and b_msg == "CARTA ESAURITA":
+                    bill_status["paper_out"] = True
+
+            # Print to kitchen if system setting is True and it's a new order
+            if auto_print_kitchen:
+                k_ok, k_msg = print_kitchen_receipt(int(order_number_str) if order_number_str.isdigit() else order_id_to_use, {"items": new_items_for_kitchen, "table_number": payload.get("table_number", "Nessuno"), "takeaway": payload.get("takeaway", False), "notes": payload.get("notes", "")}, lock_acquired=True)
+                kitchen_status = {"printed": k_ok, "message": k_msg}
+                if not k_ok and k_msg == "CARTA ESAURITA":
+                    kitchen_status["paper_out"] = True
+
+            return {
+                "status": "success",
+                "order_id": order_number_str,
+                "auto_print": auto_print_main or auto_print_kitchen,
+                "bill_status": bill_status,
+                "kitchen_status": kitchen_status
+            }
+        finally:
+            # Always release acquired printer locks
+            for lock in acquired_locks:
+                try:
+                    lock.release()
+                except Exception:
+                    pass
+    except HTTPException:
+        raise
     except Exception as e:
         db.rollback()
         raise HTTPException(status_code=500, detail=str(e))
