@@ -769,6 +769,8 @@ def create_order(payload: dict = Body(...)):
                 bill_status = {"printed": b_ok, "message": b_msg}
                 if not b_ok and b_msg == "CARTA ESAURITA":
                     bill_status["paper_out"] = True
+                if not b_ok and b_msg == "ERRORE COMUNICAZIONE STAMPANTE":
+                    bill_status["printer_error"] = True
 
             # Print to kitchen if system setting is True and it's a new order
             if auto_print_kitchen:
@@ -776,6 +778,8 @@ def create_order(payload: dict = Body(...)):
                 kitchen_status = {"printed": k_ok, "message": k_msg}
                 if not k_ok and k_msg == "CARTA ESAURITA":
                     kitchen_status["paper_out"] = True
+                if not k_ok and k_msg == "ERRORE COMUNICAZIONE STAMPANTE":
+                    kitchen_status["printer_error"] = True
 
             return {
                 "status": "success",
@@ -807,6 +811,8 @@ def reprint_bill(order_id: str, payload: dict = Body(...)):
         status_dict = {"printed": b_ok, "message": b_msg}
         if not b_ok and b_msg == "CARTA ESAURITA":
             status_dict["paper_out"] = True
+        if not b_ok and b_msg == "ERRORE COMUNICAZIONE STAMPANTE":
+            status_dict["printer_error"] = True
         return {"status": "success", "bill_status": status_dict}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -832,6 +838,8 @@ def reprint_kitchen(order_id: str, payload: dict = Body(...)):
         status_dict = {"printed": k_ok, "message": k_msg}
         if not k_ok and k_msg == "CARTA ESAURITA":
             status_dict["paper_out"] = True
+        if not k_ok and k_msg == "ERRORE COMUNICAZIONE STAMPANTE":
+            status_dict["printer_error"] = True
         return {"status": "success", "kitchen_status": status_dict}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
