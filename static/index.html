@@ -1544,6 +1544,11 @@
                                 if (retry) {
                                     await performReprintBill(result.order_id, payload);
                                 }
+                            } else if (result.bill_status.printer_error) {
+                                let retry = confirm(`ERRORE COMUNICAZIONE STAMPANTE (Scontrini, Ordine #${result.order_id}). Controllare la connessione e cliccare OK per ristampare.`);
+                                if (retry) {
+                                    await performReprintBill(result.order_id, payload);
+                                }
                             } else {
                                 showToast(result.bill_status.printed ? "Scontrino Stampato" : "Errore Scontrino", result.bill_status.message, result.bill_status.printed);
                             }
@@ -1551,6 +1556,11 @@
                         if (result.kitchen_status && result.kitchen_status.message !== "Non necessaria / disabilitata") {
                             if (result.kitchen_status.paper_out) {
                                 let retry = confirm(`CARTA ESAURITA nella stampante Cucina (Ordine #${result.order_id}). Sostituire il rotolo e cliccare OK per ristampare.`);
+                                if (retry) {
+                                    await performReprintKitchen(result.order_id, payload);
+                                }
+                            } else if (result.kitchen_status.printer_error) {
+                                let retry = confirm(`ERRORE COMUNICAZIONE STAMPANTE (Cucina, Ordine #${result.order_id}). Controllare la connessione e cliccare OK per ristampare.`);
                                 if (retry) {
                                     await performReprintKitchen(result.order_id, payload);
                                 }
@@ -1614,6 +1624,11 @@
                         if (retry) {
                             await performReprintBill(order_id, current_payload);
                         }
+                    } else if (result.bill_status && result.bill_status.printer_error) {
+                        let retry = confirm(`ERRORE COMUNICAZIONE STAMPANTE (Scontrini). Controllare la connessione e cliccare OK per riprovare.`);
+                        if (retry) {
+                            await performReprintBill(order_id, current_payload);
+                        }
                     } else {
                         showToast(result.bill_status.printed ? "Scontrino Stampato" : "Errore Scontrino", result.bill_status.message, result.bill_status.printed);
                     }
@@ -1649,6 +1664,11 @@
                 if (result.status === 'success') {
                     if (result.kitchen_status && result.kitchen_status.paper_out) {
                         let retry = confirm(`CARTA ESAURITA nella stampante Cucina. Sostituire il rotolo e cliccare OK per riprovare.`);
+                        if (retry) {
+                            await performReprintKitchen(order_id, current_payload);
+                        }
+                    } else if (result.kitchen_status && result.kitchen_status.printer_error) {
+                        let retry = confirm(`ERRORE COMUNICAZIONE STAMPANTE (Cucina). Controllare la connessione e cliccare OK per riprovare.`);
                         if (retry) {
                             await performReprintKitchen(order_id, current_payload);
                         }

@@ -171,7 +171,12 @@ def print_bill(order_id: int, payload: dict, lock_acquired: bool = False):
                     p.close()
                     return False, "CARTA ESAURITA"
             except Exception as e:
-                pass
+                print(f"Error checking paper status: {e}")
+                try:
+                    p.close()
+                except:
+                    pass
+                return False, "ERRORE COMUNICAZIONE STAMPANTE"
 
             #p._raw(b'\x1b\x74\x13') # CP 858
             p.charcode('CP858')
@@ -336,7 +341,12 @@ def print_bill(order_id: int, payload: dict, lock_acquired: bool = False):
                     p.close()
                     return False, "CARTA ESAURITA"
             except Exception as e:
-                pass
+                print(f"Error checking paper status: {e}")
+                try:
+                    p.close()
+                except:
+                    pass
+                return False, "ERRORE COMUNICAZIONE STAMPANTE"
 
             p.close()
             return True, "Scontrino stampato correttamente"
@@ -374,7 +384,12 @@ def print_kitchen_receipt(order_id: int, payload: dict, lock_acquired: bool = Fa
                     p.close()
                     return False, "CARTA ESAURITA"
             except Exception as e:
-                pass
+                print(f"Error checking paper status: {e}")
+                try:
+                    p.close()
+                except:
+                    pass
+                return False, "ERRORE COMUNICAZIONE STAMPANTE"
 
             p._raw(b'\x1b\x74\x13') # CP 858
 
@@ -529,7 +544,12 @@ def print_kitchen_receipt(order_id: int, payload: dict, lock_acquired: bool = Fa
                     p.close()
                     return False, "CARTA ESAURITA"
             except Exception as e:
-                pass
+                print(f"Error checking paper status: {e}")
+                try:
+                    p.close()
+                except:
+                    pass
+                return False, "ERRORE COMUNICAZIONE STAMPANTE"
 
             p.close()
             return True, "Comanda cucina stampata correttamente"
