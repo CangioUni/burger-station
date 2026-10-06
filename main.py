@@ -971,6 +971,14 @@ def get_stats_days():
 
 @app.get("/api/stats/data")
 def get_stats_data(day: str):
+    if not isinstance(day, str):
+        raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
+
+    try:
+        datetime.datetime.strptime(day, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
+
     exporter = StatsExporter(session_factory=SessionLocal)
     stats = exporter.generate_stats(day)
     return stats
@@ -980,6 +988,14 @@ def export_stats_excel(payload: dict = Body(...)):
     day = payload.get('day')
     if not day:
         raise HTTPException(status_code=400, detail="Day is required")
+
+    if not isinstance(day, str):
+        raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
+
+    try:
+        datetime.datetime.strptime(day, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
 
     exporter = StatsExporter(session_factory=SessionLocal)
     stats = exporter.generate_stats(day)
@@ -995,6 +1011,14 @@ def export_stats_pdf(payload: dict = Body(...)):
     day = payload.get('day')
     if not day:
         raise HTTPException(status_code=400, detail="Day is required")
+
+    if not isinstance(day, str):
+        raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
+
+    try:
+        datetime.datetime.strptime(day, "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid date format. Expected YYYY-MM-DD")
 
     exporter = StatsExporter(session_factory=SessionLocal)
     stats = exporter.generate_stats(day)
