@@ -6,6 +6,7 @@
     <title>Editor Menu</title>
     <link rel="icon" type="image/x-icon" href="/static/favicon.ico">
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 </head>
 
 <body class="bg-gray-100 p-8 h-screen flex flex-col">
@@ -26,11 +27,22 @@
     <div class="flex gap-8 flex-grow overflow-hidden">
         <!-- Categories Column -->
         <div id="category-panel" class="bg-white p-6 rounded shadow flex flex-col">
-            <h2 class="editor-section-title mb-4 border-b pb-2">Categorie</h2>
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h2 class="editor-section-title">Categorie</h2>
+                <span class="text-xs text-gray-400 font-medium">Trascina per riordinare</span>
+            </div>
             <div id="cat-list" class="flex-grow overflow-y-auto space-y-2 mb-4"></div>
-            <div class="border-t pt-4">
+            <div class="border-t pt-4 space-y-2">
                 <input type="text" id="new-cat-name" placeholder="Nome Nuova Categoria"
-                    class="w-full border p-2 rounded mb-2">
+                    class="w-full border p-2 rounded text-sm">
+                <div class="flex items-center space-x-2">
+                    <label class="text-xs font-bold text-gray-600 whitespace-nowrap">Destinazione:</label>
+                    <select id="new-cat-printer" class="w-full border p-1.5 rounded text-sm bg-white font-medium">
+                        <option value="cucina">🍽️ Cucina</option>
+                        <option value="bevande">🥤 Bevande</option>
+                        <option value="none">🚫 Nessuna</option>
+                    </select>
+                </div>
                 <button onclick="addCategory()"
                     class="w-full bg-green-600 text-white font-bold py-2 rounded hover:bg-green-500">Aggiungi
                     Categoria</button>
@@ -133,7 +145,7 @@
             <div class="flex space-x-2 mt-6 pt-4 border-t">
                 <button onclick="closeItemEditorModal()"
                     class="bg-gray-400 text-white font-bold py-2 px-4 rounded hover:bg-gray-500">Annulla</button>
-                <button onclick="saveItem()"
+                <button id="btn-save-item" onclick="saveItem()"
                     class="flex-grow bg-blue-600 text-white font-bold py-2 px-4 rounded hover:bg-blue-500">Salva
                     Articolo</button>
             </div>
@@ -178,13 +190,21 @@
         }
 
         async function loadData() {
-            const [cResp, mResp] = await Promise.all([fetch('/categories'), fetch('/menu')]);
-            categories = await cResp.json();
-            menuItems = await mResp.json();
+            try {
+                const [cResp, mResp] = await Promise.all([fetch('/categories'), fetch('/menu')]);
+                if (!cResp.ok || !mResp.ok) {
+                    console.error("Failed to load categories or menu items");
+                    return;
+                }
+                categories = await cResp.json();
+                menuItems = await mResp.json();
 
-            renderCategories();
-            renderMenuItems();
-            updateCategoryDropdown();
+                renderCategories();
+                renderMenuItems();
+                updateCategoryDropdown();
+            } catch (err) {
+                console.error("Error loading data:", err);
+            }
         }
 
         function escapeHTML(str) {
@@ -200,16 +220,92 @@
             );
         }
 
+        let catSortableInstance = null;
+
         function renderCategories() {
             const list = document.getElementById('cat-list');
             list.innerHTML = '';
-            categories.forEach(c => {
-                list.innerHTML += `
-                    <div class="flex justify-between items-center p-2 bg-gray-50 border rounded">
-                        <span class="editor-item-title capitalize">${escapeHTML(c.name)}</span>
-                        <button onclick="deleteCategory(${c.id})" class="text-red-500 font-bold px-2 py-1 bg-red-100 rounded hover:bg-red-200">X</button>
+            categories.forEach((c, index) => {
+                const itemDiv = document.createElement('div');
+                itemDiv.className = "cat-row flex justify-between items-center p-2.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded shadow-sm transition-all select-none";
+                itemDiv.setAttribute('data-id', c.id);
+
+                const target = c.printer_target || 'cucina';
+                const targetBadgeClass = target === 'bevande' 
+                    ? 'bg-purple-100 text-purple-800 border-purple-300' 
+                    : target === 'none' 
+                        ? 'bg-gray-200 text-gray-600 border-gray-300' 
+                        : 'bg-green-100 text-green-800 border-green-300';
+
+                itemDiv.innerHTML = `
+                    <div class="flex items-center space-x-2 flex-grow min-w-0">
+                        <div class="cat-drag-handle cursor-grab active:cursor-grabbing p-1 text-gray-400 hover:text-gray-700 rounded hover:bg-gray-200 transition-colors flex items-center justify-center touch-none" title="Trascina per riordinare">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 8h16M4 16h16"></path>
+                            </svg>
+                        </div>
+                        <span class="cat-index-badge text-xs font-mono font-bold text-gray-400 w-5 text-right">${index + 1}.</span>
+                        <span class="editor-item-title capitalize truncate font-semibold text-gray-800 flex-grow" title="${escapeHTML(c.name)}">${escapeHTML(c.name)}</span>
+                        <select onchange="updateCategoryPrinter(${c.id}, this.value)" class="text-xs font-semibold py-1 px-1.5 border rounded cursor-pointer ${targetBadgeClass} focus:outline-none focus:ring-1 focus:ring-blue-500" title="Stampante di destinazione">
+                            <option value="cucina" ${target === 'cucina' ? 'selected' : ''}>🍽️ Cucina</option>
+                            <option value="bevande" ${target === 'bevande' ? 'selected' : ''}>🥤 Bevande</option>
+                            <option value="none" ${target === 'none' ? 'selected' : ''}>🚫 Nessuna</option>
+                        </select>
                     </div>
+                    <button onclick="deleteCategory(${c.id})" class="text-red-500 font-bold px-2 py-1 bg-red-100 rounded hover:bg-red-200 ml-2 transition-colors" title="Elimina categoria">X</button>
                 `;
+                list.appendChild(itemDiv);
+            });
+            initCategorySortable();
+        }
+
+        function initCategorySortable() {
+            const list = document.getElementById('cat-list');
+            if (!list) return;
+            if (catSortableInstance) {
+                catSortableInstance.destroy();
+            }
+            catSortableInstance = new Sortable(list, {
+                animation: 150,
+                handle: '.cat-drag-handle',
+                ghostClass: 'bg-yellow-100',
+                chosenClass: 'bg-yellow-50',
+                dragClass: 'opacity-70',
+                fallbackTolerance: 3,
+                touchStartThreshold: 3,
+                delay: 0,
+                delayOnTouchOnly: false,
+                onEnd: async function () {
+                    const rows = list.querySelectorAll('.cat-row');
+                    rows.forEach((r, idx) => {
+                        const badge = r.querySelector('.cat-index-badge');
+                        if (badge) badge.textContent = `${idx + 1}.`;
+                    });
+
+                    const newOrderIds = Array.from(list.children)
+                        .map(el => parseInt(el.getAttribute('data-id')))
+                        .filter(id => !isNaN(id));
+
+                    try {
+                        const resp = await fetch('/categories/reorder', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ ordered_ids: newOrderIds })
+                        });
+                        if (resp.ok) {
+                            const catMap = new Map(categories.map(c => [c.id, c]));
+                            categories = newOrderIds.map(id => catMap.get(id)).filter(Boolean);
+                            updateCategoryDropdown();
+                        } else {
+                            alert("Errore durante il salvataggio dell'ordine delle categorie");
+                            await loadData();
+                        }
+                    } catch (err) {
+                        console.error("Reorder failed:", err);
+                        alert("Errore di connessione durante il riordino");
+                        await loadData();
+                    }
+                }
             });
         }
 
@@ -221,26 +317,65 @@
             });
         }
 
-        async function addCategory() {
-            const name = document.getElementById('new-cat-name').value.trim();
-            if (!name) return;
-            const resp = await fetch('/categories', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: name.toLowerCase() })
-            });
-            if (resp.ok) {
-                document.getElementById('new-cat-name').value = '';
+        async function updateCategoryPrinter(id, target) {
+            try {
+                const resp = await fetch('/categories/' + id, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ printer_target: target })
+                });
+                if (resp.ok) {
+                    const cat = categories.find(c => c.id === id);
+                    if (cat) cat.printer_target = target;
+                    renderCategories();
+                } else {
+                    alert("Errore nell'aggiornamento della stampante per la categoria");
+                    await loadData();
+                }
+            } catch (err) {
+                console.error("Failed to update category printer:", err);
+                alert("Errore di connessione");
                 await loadData();
-            } else {
-                alert("Errore aggiunta categoria");
+            }
+        }
+
+        async function addCategory() {
+            const input = document.getElementById('new-cat-name');
+            const name = input.value.trim();
+            if (!name) return;
+            const printer_target = document.getElementById('new-cat-printer').value;
+            try {
+                const resp = await fetch('/categories', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name.toLowerCase(), printer_target: printer_target })
+                });
+                if (resp.ok) {
+                    input.value = '';
+                    await loadData();
+                } else {
+                    const errData = await resp.json().catch(() => ({}));
+                    alert("Errore aggiunta categoria: " + (errData.detail || resp.statusText));
+                }
+            } catch (err) {
+                console.error("Error adding category:", err);
+                alert("Errore di connessione durante l'aggiunta della categoria.");
             }
         }
 
         async function deleteCategory(id) {
             if (!confirm("Eliminare categoria?")) return;
-            const resp = await fetch('/categories/' + id, { method: 'DELETE' });
-            if (resp.ok) loadData();
+            try {
+                const resp = await fetch('/categories/' + id, { method: 'DELETE' });
+                if (resp.ok) {
+                    await loadData();
+                } else {
+                    alert("Errore eliminazione categoria");
+                }
+            } catch (err) {
+                console.error("Error deleting category:", err);
+                alert("Errore di connessione durante l'eliminazione.");
+            }
         }
 
         function renderMenuItems() {
@@ -384,12 +519,12 @@
             const sort_order = (sortOrderInput === '' || isNaN(sortOrderInput)) ? 0 : parseInt(sortOrderInput);
 
             const payload = {
-                description: document.getElementById('item-desc').value,
+                description: document.getElementById('item-desc').value.trim(),
                 price: parseFloat(document.getElementById('item-price').value) || 0,
-                image_url: document.getElementById('item-img').value,
+                image_url: document.getElementById('item-img').value.trim(),
                 category: document.getElementById('item-cat').value,
-                components: document.getElementById('item-comp').value,
-                additions: document.getElementById('item-additions').value,
+                components: document.getElementById('item-comp').value.trim(),
+                additions: document.getElementById('item-additions').value.trim(),
                 is_combo: isCombo,
                 combo_items: JSON.stringify(comboArr),
                 max_items: max_items,
@@ -405,27 +540,51 @@
                 method = 'PUT';
             }
 
-            const resp = await fetch(url, {
-                method: method,
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            });
+            const saveBtn = document.getElementById('btn-save-item');
+            if (saveBtn) {
+                saveBtn.disabled = true;
+                saveBtn.innerText = "Salvataggio in corso...";
+            }
 
-            if (resp.ok) {
-                closeItemEditorModal();
-                loadData();
-            } else {
-                alert("Errore salvataggio articolo");
+            try {
+                const resp = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                if (resp.ok) {
+                    closeItemEditorModal();
+                    await loadData();
+                } else {
+                    const errData = await resp.json().catch(() => ({}));
+                    alert("Errore salvataggio articolo: " + (errData.detail || resp.statusText));
+                }
+            } catch (err) {
+                console.error("Error saving menu item:", err);
+                alert("Errore di connessione durante il salvataggio dell'articolo. Verifica che il server sia raggiungibile e riprova.");
+            } finally {
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerText = "Salva Articolo";
+                }
             }
         }
 
         async function deleteItem(id, event) {
-            event.stopPropagation();
+            if (event) event.stopPropagation();
             if (!confirm("Eliminare articolo?")) return;
-            const resp = await fetch('/menu/' + id, { method: 'DELETE' });
-            if (resp.ok) {
-                clearItemForm();
-                loadData();
+            try {
+                const resp = await fetch('/menu/' + id, { method: 'DELETE' });
+                if (resp.ok) {
+                    clearItemForm();
+                    await loadData();
+                } else {
+                    alert("Errore eliminazione articolo");
+                }
+            } catch (err) {
+                console.error("Error deleting menu item:", err);
+                alert("Errore di connessione durante l'eliminazione.");
             }
         }
 

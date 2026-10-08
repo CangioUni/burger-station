@@ -41,9 +41,12 @@
                 Editor Menu</a>
             <button onclick="openSettings()" class="bg-gray-700 hover:bg-gray-600 px-3 py-1 rounded header-btn">⚙️
                 Impostazioni</button>
-            <span>Operatore:</span>
-            <select id="user-selector" class="bg-gray-800 border border-gray-700 rounded px-2 py-1 text-white">
-            </select>
+            <div class="flex items-center space-x-1.5 bg-gray-800 px-2 py-1 rounded border border-gray-700">
+                <span class="text-xs text-gray-300 font-bold">👤</span>
+                <select id="user-selector" class="bg-gray-900 border border-gray-700 rounded px-2 py-1 text-white font-bold cursor-pointer text-sm">
+                </select>
+                <button onclick="openStaffModal(true)" title="Seleziona / Cambia Operatore" class="bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded font-bold transition-colors">Cambia</button>
+            </div>
         </div>
     </div>
 
@@ -348,7 +351,33 @@
                 <div class="mb-6 p-5 border border-gray-600 rounded-lg bg-gray-900 shadow-inner">
                 <h3 class="text-xl font-bold mb-4 text-blue-400 border-b border-gray-700 pb-2">Impostazioni Cassa
                     (Personali)</h3>
+                <div class="mb-4">
+                    <label class="block mb-2 font-bold">Nome Operatore / Cassa</label>
+                    <input type="text" id="staff-name-input" placeholder="es. Staff 1, Cassa Principale, Bar, Operatore Mobile"
+                        class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full font-bold text-lg" />
+                    <p class="text-xs text-gray-400 mt-1">Personalizza il nome visualizzato per questa postazione e salvalo nel database.</p>
+                </div>
                 <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block mb-2 font-bold">Tipo Connessione Scontrini</label>
+                        <select id="printer-connection-type" onchange="togglePrinterConnectionTypeUI()"
+                            class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full font-bold text-sm">
+                            <option value="network">🌐 Rete LAN (Ethernet / Wi-Fi)</option>
+                            <option value="bluetooth">📱 Bluetooth (Tablet / Operatore Mobile)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block mb-2 font-bold">Larghezza Carta Scontrini</label>
+                        <select id="printer-paper-width"
+                            class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full font-bold text-sm">
+                            <option value="80mm">80 mm (Standard / 48 colonne)</option>
+                            <option value="58mm">58 mm (Compatta / 32 colonne)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Network Printer Options -->
+                <div id="network-printer-settings" class="grid grid-cols-2 gap-4 mb-4">
                     <div>
                         <label class="block mb-2 font-bold">IP Stampante Scontrini</label>
                         <div class="flex space-x-2">
@@ -367,6 +396,26 @@
                         </select>
                     </div>
                 </div>
+
+                <!-- Bluetooth Printer Options -->
+                <div id="bluetooth-printer-settings" class="hidden mb-4 p-3 bg-gray-800 rounded-lg border border-blue-500/40">
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-bold text-sm text-blue-300">Stato Stampante Bluetooth:</span>
+                        <span id="bt-status-badge" class="bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-full font-bold">Non connessa</span>
+                    </div>
+                    <div id="bt-device-name-display" class="text-xs text-gray-400 mb-3 font-mono">Nessun dispositivo associato su questo dispositivo/tablet</div>
+                    <div class="flex space-x-2">
+                        <button type="button" onclick="connectBluetoothPrinter(true)"
+                            class="bg-blue-600 hover:bg-blue-500 px-4 py-2.5 rounded font-bold text-sm flex items-center space-x-2 flex-grow justify-center shadow">
+                            <span>📡 Associa / Connetti Stampante</span>
+                        </button>
+                        <button type="button" onclick="testBluetoothPrinter()"
+                            class="bg-green-700 hover:bg-green-600 px-4 py-2.5 rounded font-bold text-sm shadow">
+                            <span>🧪 Test Stampa</span>
+                        </button>
+                    </div>
+                </div>
+
                 <label class="flex items-center space-x-3 cursor-pointer">
                     <input type="checkbox" id="auto-print-main-cb"
                         class="w-6 h-6 rounded text-green-500 focus:ring-green-500 bg-gray-700 border-gray-600">
@@ -403,6 +452,35 @@
                 </label>
             </div>
 
+            <div class="mb-6 p-5 border border-gray-600 rounded-lg bg-gray-900 shadow-inner">
+                <h3 class="text-xl font-bold mb-4 text-purple-400 border-b border-gray-700 pb-2">Impostazioni Bevande / Bar
+                    (Globali)</h3>
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                        <label class="block mb-2 font-bold">IP Stampante Bevande</label>
+                        <div class="flex space-x-2">
+                            <input type="text" id="bar-printer-ip"
+                                class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full" />
+                            <button onclick="testPrinter('bar-printer-ip')"
+                                class="bg-blue-600 hover:bg-blue-500 px-4 rounded font-bold whitespace-nowrap">Test</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block mb-2 font-bold">Protocollo Stampante</label>
+                        <select id="bar-printer-protocol"
+                            class="bg-gray-700 text-white p-2 rounded border border-gray-600 w-full font-bold">
+                            <option value="escpos">ESC/POS</option>
+                            <option value="xon/xoff">XON/XOFF</option>
+                        </select>
+                    </div>
+                </div>
+                <label class="flex items-center space-x-3 cursor-pointer">
+                    <input type="checkbox" id="auto-print-bar-cb"
+                        class="w-6 h-6 rounded text-green-500 focus:ring-green-500 bg-gray-700 border-gray-600">
+                    <span class="font-bold text-lg">Stampa Comanda Automatica</span>
+                </label>
+            </div>
+
             <div class="mb-4">
                 <label class="block mb-2 font-bold">Prossimo N. Ordine / Scontrino</label>
                 <div class="flex items-center space-x-2">
@@ -420,6 +498,24 @@
             <div class="flex justify-end space-x-4 flex-shrink-0 mt-auto border-t border-gray-600 pt-4">
                 <button onclick="closeSettings()" class="bg-gray-600 px-6 py-2 rounded modal-btn">Annulla</button>
                 <button onclick="saveSettings()" class="bg-green-600 px-6 py-2 rounded modal-btn">Salva</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Staff Selection Modal -->
+    <div id="staff-select-modal"
+        class="hidden fixed inset-0 bg-black bg-opacity-80 backdrop-blur-sm flex flex-col items-center justify-center text-white z-50 p-4">
+        <div class="bg-gray-900 p-8 rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-700 max-h-[90vh] flex flex-col">
+            <div class="text-center mb-6">
+                <span class="text-5xl mb-2 inline-block">👤</span>
+                <h2 class="text-3xl font-black text-white">Seleziona Operatore / Cassa</h2>
+                <p class="text-gray-400 mt-1">Scegli la tua postazione di lavoro per accedere al tuo carrello e alla tua stampante dedicata.</p>
+            </div>
+            <div id="staff-select-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6 overflow-y-auto pr-1">
+                <!-- dynamic staff cards -->
+            </div>
+            <div id="staff-modal-close-container" class="hidden justify-end border-t border-gray-800 pt-4">
+                <button onclick="closeStaffModal()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-lg font-bold">Chiudi</button>
             </div>
         </div>
     </div>
@@ -548,29 +644,119 @@
 
         let menuData = [];
         let categoriesData = [];
+        let usersData = [];
         let activeCategory = 'panini';
         let cart = [];
         let state = { user_id: 1, table: "Nessuno", takeaway: false, discount: 0, discount_type: '%', payment_method: 'Cash', orderNotes: '' };
 
+        function getCookie(name) {
+            const value = `; ${document.cookie}`;
+            const parts = value.split(`; ${name}=`);
+            if (parts.length === 2) return parts.pop().split(';').shift();
+            return null;
+        }
+
+        function setCookie(name, value, days = 365) {
+            const d = new Date();
+            d.setTime(d.getTime() + (days * 24 * 60 * 60 * 1000));
+            document.cookie = `${name}=${value};expires=${d.toUTCString()};path=/;SameSite=Lax`;
+        }
+
+        function getStoredStaffId() {
+            try {
+                const fromLocal = localStorage.getItem('pos_staff_id');
+                if (fromLocal && !isNaN(parseInt(fromLocal))) return parseInt(fromLocal);
+            } catch (e) {}
+            const fromCookie = getCookie('pos_staff_id');
+            if (fromCookie && !isNaN(parseInt(fromCookie))) return parseInt(fromCookie);
+            return null;
+        }
+
+        function setStoredStaffId(id) {
+            try {
+                localStorage.setItem('pos_staff_id', id.toString());
+            } catch (e) {}
+            setCookie('pos_staff_id', id.toString());
+        }
+
+        function updateUserSelectorDropdown() {
+            const sel = document.getElementById('user-selector');
+            if (!sel) return;
+            sel.innerHTML = '';
+            usersData.forEach(u => {
+                const opt = document.createElement('option');
+                opt.value = u.id;
+                opt.textContent = u.name;
+                if (u.id === state.user_id) opt.selected = true;
+                sel.appendChild(opt);
+            });
+        }
+
+        function renderStaffModal(allowClose = false) {
+            const grid = document.getElementById('staff-select-grid');
+            if (!grid) return;
+            grid.innerHTML = '';
+            usersData.forEach(u => {
+                const isCurrent = state.user_id === u.id;
+                const card = document.createElement('button');
+                card.type = 'button';
+                card.className = `p-5 rounded-xl border-2 text-left transition-all duration-150 flex flex-col justify-between ${isCurrent ? 'bg-blue-900/60 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-gray-800 hover:bg-gray-700 border-gray-700 hover:border-gray-500'}`;
+                card.onclick = () => selectStaff(u.id);
+                const isBt = (u.printer_connection_type === 'bluetooth');
+                const printerDesc = isBt 
+                    ? `📱 Bluetooth (${u.printer_paper_width || '80mm'})` 
+                    : `🌐 Rete: ${u.printer_ip || '10.0.0.200'}`;
+                card.innerHTML = `
+                    <div class="flex items-center justify-between mb-2">
+                        <span class="font-black text-xl text-white">${escapeHTML(u.name)}</span>
+                        ${isCurrent ? '<span class="bg-blue-600 text-xs px-2 py-0.5 rounded font-bold uppercase tracking-wider">Attivo</span>' : ''}
+                    </div>
+                    <div class="text-xs text-gray-400 font-mono">
+                        <div>🖨️ <span class="text-gray-300 font-semibold">${printerDesc}</span></div>
+                    </div>
+                `;
+                grid.appendChild(card);
+            });
+            const closeBtn = document.getElementById('staff-modal-close-container');
+            if (closeBtn) {
+                if (allowClose) closeBtn.classList.remove('hidden');
+                else closeBtn.classList.add('hidden');
+            }
+        }
+
+        function openStaffModal(allowClose = true) {
+            renderStaffModal(allowClose);
+            document.getElementById('staff-select-modal').classList.remove('hidden');
+        }
+
+        function closeStaffModal() {
+            document.getElementById('staff-select-modal').classList.add('hidden');
+        }
+
+        async function selectStaff(userId) {
+            state.user_id = userId;
+            setStoredStaffId(userId);
+            updateUserSelectorDropdown();
+            closeStaffModal();
+            await loadRemoteState();
+        }
+
         async function init() {
             const [uResp, mResp, cResp] = await Promise.all([fetch('/users'), fetch('/menu'), fetch('/categories')]);
-            const users = await uResp.json();
+            usersData = await uResp.json();
             menuData = await mResp.json();
             categoriesData = await cResp.json();
+            categoriesData.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+
+            updateUserSelectorDropdown();
 
             const sel = document.getElementById('user-selector');
-            sel.innerHTML = '';
-            users.forEach(u => sel.innerHTML += `<option value="${u.id}">${u.name}</option>`);
-
             sel.addEventListener('change', async (e) => {
-                state.user_id = e.target.value;
+                const newUserId = parseInt(e.target.value);
+                state.user_id = newUserId;
+                setStoredStaffId(newUserId);
                 await loadRemoteState();
             });
-
-            if (users.length > 0) {
-                state.user_id = users[0].id;
-                sel.value = state.user_id;
-            }
 
             const catSidebar = document.getElementById('category-sidebar');
             let catHtml = '';
@@ -579,7 +765,18 @@
             });
             catSidebar.innerHTML = catHtml;
 
-            await loadRemoteState();
+            // Check stored staff ID from cookie/localStorage
+            const storedId = getStoredStaffId();
+            const matchedUser = usersData.find(u => u.id === storedId);
+
+            if (matchedUser) {
+                state.user_id = matchedUser.id;
+                sel.value = state.user_id;
+                await loadRemoteState();
+            } else {
+                // Explicitly prompt user to choose their staff member (unclosable until chosen)
+                openStaffModal(false);
+            }
 
             if (categoriesData.length > 0) setCategory(categoriesData[0].name);
             initSortable();
@@ -608,6 +805,8 @@
                     state.auto_print_main = data.auto_print_main !== false;
                     state.printer_ip = data.printer_ip || '';
                     state.printer_protocol = data.printer_protocol || 'escpos';
+                    state.printer_connection_type = data.printer_connection_type || 'network';
+                    state.printer_paper_width = data.printer_paper_width || '80mm';
 
                     document.getElementById('lbl-table').innerText = state.table;
                     const btnTake = document.getElementById('btn-takeaway');
@@ -657,18 +856,25 @@
         function saveRemoteState() {
             clearTimeout(saveTimeout);
             saveTimeout = setTimeout(async () => {
-                const payload = {
-                    active_cart: JSON.stringify(cart),
-                    active_state: JSON.stringify(state),
-                    auto_print_main: state.auto_print_main !== false,
-                    printer_ip: state.printer_ip || '',
-                    printer_protocol: state.printer_protocol || 'escpos'
-                };
-                await fetch('/users/' + state.user_id + '/cart', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+                try {
+                    if (!state.user_id) return;
+                    const payload = {
+                        active_cart: JSON.stringify(cart),
+                        active_state: JSON.stringify(state),
+                        auto_print_main: state.auto_print_main !== false,
+                        printer_ip: state.printer_ip || '',
+                        printer_protocol: state.printer_protocol || 'escpos',
+                        printer_connection_type: state.printer_connection_type || 'network',
+                        printer_paper_width: state.printer_paper_width || '80mm'
+                    };
+                    await fetch('/users/' + state.user_id + '/cart', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                } catch (e) {
+                    console.warn("Could not sync remote user cart/state:", e);
+                }
             }, 300);
         }
 
@@ -1525,6 +1731,11 @@
                     state.orderNotes = '';
                     document.getElementById('custom-order-id').value = '';
                     document.getElementById('lbl-table').innerText = "Nessuno";
+                    const tableInput = document.getElementById('table-input');
+                    if (tableInput) tableInput.value = '';
+                    const notesInput = document.getElementById('order-notes-input');
+                    if (notesInput) notesInput.value = '';
+
                     const btnTake = document.getElementById('btn-takeaway');
                     const lblTake = document.getElementById('lbl-asporto');
                     btnTake.classList.remove('bg-orange-600', 'border-orange-500');
@@ -1540,6 +1751,7 @@
                     }
 
                     render(false);
+                    saveRemoteState();
 
                     // Fetch updated menu data to refresh remaining counts
                     fetch('/menu')
@@ -1555,7 +1767,9 @@
 
                     if (result.auto_print) {
                         if (result.bill_status) {
-                            if (result.bill_status.paper_out) {
+                            if (result.bill_status.is_bluetooth && result.bill_status.escpos_base64) {
+                                await sendBluetoothEscpos(result.bill_status.escpos_base64);
+                            } else if (result.bill_status.paper_out) {
                                 let retry = confirm(`CARTA ESAURITA nella stampante Scontrini (Ordine #${result.order_id}). Sostituire il rotolo e cliccare OK per ristampare.`);
                                 if (retry) {
                                     await performReprintBill(result.order_id, payload);
@@ -1564,7 +1778,7 @@
                                 showToast(result.bill_status.printed ? "Scontrino Stampato" : "Errore Scontrino", result.bill_status.message, result.bill_status.printed);
                             }
                         }
-                        if (result.kitchen_status && result.kitchen_status.message !== "Non necessaria / disabilitata") {
+                        if (result.kitchen_status && result.kitchen_status.message !== "Non necessaria / disabilitata" && result.kitchen_status.message !== "Nessun articolo per cucina") {
                             if (result.kitchen_status.paper_out) {
                                 let retry = confirm(`CARTA ESAURITA nella stampante Cucina (Ordine #${result.order_id}). Sostituire il rotolo e cliccare OK per ristampare.`);
                                 if (retry) {
@@ -1572,6 +1786,16 @@
                                 }
                             } else {
                                 showToast(result.kitchen_status.printed ? "Comanda Cucina" : "Errore Cucina", result.kitchen_status.message, result.kitchen_status.printed);
+                            }
+                        }
+                        if (result.bar_status && result.bar_status.message !== "Non necessaria / disabilitata" && result.bar_status.message !== "Nessun articolo per bevande") {
+                            if (result.bar_status.paper_out) {
+                                let retry = confirm(`CARTA ESAURITA nella stampante Bevande (Ordine #${result.order_id}). Sostituire il rotolo e cliccare OK per ristampare.`);
+                                if (retry) {
+                                    await performReprintBar(result.order_id, payload);
+                                }
+                            } else {
+                                showToast(result.bar_status.printed ? "Comanda Bevande" : "Errore Bevande", result.bar_status.message, result.bar_status.printed);
                             }
                         }
                     } else {
@@ -1625,7 +1849,9 @@
                 });
                 const result = await resp.json();
                 if (result.status === 'success') {
-                    if (result.bill_status && result.bill_status.paper_out) {
+                    if (result.bill_status && result.bill_status.is_bluetooth && result.bill_status.escpos_base64) {
+                        await sendBluetoothEscpos(result.bill_status.escpos_base64);
+                    } else if (result.bill_status && result.bill_status.paper_out) {
                         let retry = confirm(`CARTA ESAURITA nella stampante Scontrini. Sostituire il rotolo e cliccare OK per riprovare.`);
                         if (retry) {
                             await performReprintBill(order_id, current_payload);
@@ -1680,6 +1906,44 @@
             }
         }
 
+        async function performReprintBar(order_id, payload) {
+            try {
+                let current_payload = payload;
+                if (!current_payload) {
+                    const resp = await fetch('/orders');
+                    const orders = await resp.json();
+                    const order = orders.find(o => o.id === order_id || o.id === order_id.toString());
+                    if (!order) {
+                        alert("Ordine non trovato per ristampa bevande.");
+                        return;
+                    }
+                    current_payload = order;
+                }
+
+                const resp = await fetch(`/order/${order_id}/print-bar`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(current_payload)
+                });
+                const result = await resp.json();
+                if (result.status === 'success') {
+                    if (result.bar_status && result.bar_status.paper_out) {
+                        let retry = confirm(`CARTA ESAURITA nella stampante Bevande. Sostituire il rotolo e cliccare OK per riprovare.`);
+                        if (retry) {
+                            await performReprintBar(order_id, current_payload);
+                        }
+                    } else {
+                        showToast(result.bar_status.printed ? "Comanda Bevande" : "Errore Bevande", result.bar_status.message, result.bar_status.printed);
+                    }
+                } else {
+                    showToast("Errore", "Impossibile ristampare.", false);
+                }
+            } catch (e) {
+                console.error(e);
+                showToast("Errore Rete", "Connessione fallita.", false);
+            }
+        }
+
         async function reprint() {
             const customId = prompt("Inserisci il numero dell'ordine da ristampare:");
             if (!customId) return;
@@ -1696,17 +1960,200 @@
             document.getElementById('success-overlay').classList.add('hidden');
         }
 
+        function togglePrinterConnectionTypeUI() {
+            const connType = document.getElementById('printer-connection-type').value;
+            const netSettings = document.getElementById('network-printer-settings');
+            const btSettings = document.getElementById('bluetooth-printer-settings');
+            if (connType === 'bluetooth') {
+                if (netSettings) netSettings.classList.add('hidden');
+                if (btSettings) btSettings.classList.remove('hidden');
+            } else {
+                if (netSettings) netSettings.classList.remove('hidden');
+                if (btSettings) btSettings.classList.add('hidden');
+            }
+        }
+
+        // ================= Web Bluetooth Engine =================
+        let btDevice = null;
+        let btCharacteristic = null;
+        let isBtConnecting = false;
+
+        function updateBtStatusUI(status, deviceName = null) {
+            const badge = document.getElementById('bt-status-badge');
+            const nameDisplay = document.getElementById('bt-device-name-display');
+            if (!badge) return;
+            if (status === 'connected') {
+                badge.className = "bg-green-600 text-white text-xs px-2.5 py-1 rounded-full font-bold";
+                badge.innerText = "Connessa";
+                if (nameDisplay && deviceName) nameDisplay.innerText = `Dispositivo: ${deviceName}`;
+            } else if (status === 'connecting') {
+                badge.className = "bg-yellow-600 text-white text-xs px-2.5 py-1 rounded-full font-bold animate-pulse";
+                badge.innerText = "Connessione...";
+            } else {
+                badge.className = "bg-gray-700 text-gray-300 text-xs px-2.5 py-1 rounded-full font-bold";
+                badge.innerText = "Non connessa";
+            }
+        }
+
+        async function connectBluetoothPrinter(userPrompted = false) {
+            if (!navigator.bluetooth) {
+                alert("Il browser o dispositivo attuale non supporta Web Bluetooth. Usa Chrome o Edge su Android o PC.");
+                return false;
+            }
+
+            try {
+                isBtConnecting = true;
+                updateBtStatusUI('connecting');
+
+                if (!btDevice || userPrompted) {
+                    btDevice = await navigator.bluetooth.requestDevice({
+                        acceptAllDevices: true,
+                        optionalServices: [
+                            '000018f0-0000-1000-8000-00805f9b34fb',
+                            'e7810a71-73ae-499d-8c15-faa9aef0c3f2',
+                            '49535343-fe7d-4ae5-8fa9-9fafd205e455',
+                            '0000ff00-0000-1000-8000-00805f9b34fb',
+                            '0000ffe0-0000-1000-8000-00805f9b34fb'
+                        ]
+                    });
+                    btDevice.addEventListener('gattserverdisconnected', () => {
+                        btCharacteristic = null;
+                        updateBtStatusUI('disconnected');
+                        showToast("Bluetooth", "Stampante Bluetooth disconnessa", false);
+                    });
+                }
+
+                if (!btDevice.gatt.connected) {
+                    const server = await btDevice.gatt.connect();
+                    const services = await server.getPrimaryServices();
+                    btCharacteristic = null;
+
+                    for (const service of services) {
+                        const characteristics = await service.getCharacteristics();
+                        for (const char of characteristics) {
+                            if (char.properties.write || char.properties.writeWithoutResponse) {
+                                btCharacteristic = char;
+                                break;
+                            }
+                        }
+                        if (btCharacteristic) break;
+                    }
+                }
+
+                if (!btCharacteristic) {
+                    throw new Error("Nessuna caratteristica di scrittura compatibile trovata sulla stampante Bluetooth.");
+                }
+
+                updateBtStatusUI('connected', btDevice.name || 'Stampante BT');
+                if (userPrompted) {
+                    showToast("Bluetooth Connesso", `Stampante ${btDevice.name || 'BT'} connessa con successo!`, true);
+                }
+                return true;
+            } catch (err) {
+                console.error("Bluetooth connection error:", err);
+                updateBtStatusUI('disconnected');
+                if (userPrompted && err.name !== 'NotFoundError') {
+                    alert("Errore connessione Bluetooth: " + err.message);
+                }
+                return false;
+            } finally {
+                isBtConnecting = false;
+            }
+        }
+
+        async function sendBluetoothEscpos(base64Data) {
+            try {
+                if (!btCharacteristic || !btDevice || !btDevice.gatt.connected) {
+                    const ok = await connectBluetoothPrinter(true);
+                    if (!ok || !btCharacteristic) {
+                        throw new Error("Stampante Bluetooth non connessa.");
+                    }
+                }
+
+                const binaryString = atob(base64Data);
+                const len = binaryString.length;
+                const bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+
+                // Chunked writing (100 bytes per chunk to respect MTU and buffer)
+                const chunkSize = 100;
+                for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+                    const chunk = bytes.slice(offset, offset + chunkSize);
+                    if (btCharacteristic.writeValueWithoutResponse) {
+                        await btCharacteristic.writeValueWithoutResponse(chunk);
+                    } else {
+                        await btCharacteristic.writeValue(chunk);
+                    }
+                    await new Promise(r => setTimeout(r, 25));
+                }
+
+                showToast("Scontrino Stampato", "Scontrino inviato via Bluetooth con successo", true);
+                return true;
+            } catch (err) {
+                console.error("Error sending to bluetooth printer:", err);
+                showToast("Errore Stampa BT", "Invio Bluetooth fallito: " + err.message, false);
+                return false;
+            }
+        }
+
+        async function testBluetoothPrinter() {
+            try {
+                const staffName = document.getElementById('staff-name-input').value.trim() || `Staff ${state.user_id}`;
+                const paperWidth = document.getElementById('printer-paper-width').value || '80mm';
+                const cols = (paperWidth === '58mm') ? 32 : 48;
+                
+                let testText = "\x1b@"; // Initialize
+                testText += "\x1ba\x01"; // Center
+                testText += "\x1b!\x08TEST BLUETOOTH\n\x1b!\x00";
+                testText += `${staffName}\n`;
+                testText += `Carta: ${paperWidth} (${cols} col)\n`;
+                testText += new Date().toLocaleString() + "\n";
+                testText += "-".repeat(cols) + "\n";
+                testText += "Stampa Bluetooth OK!\n\n\n\n\x1dV\x41\x03";
+                
+                const encoder = new TextEncoder();
+                const raw = encoder.encode(testText);
+                let binary = '';
+                for (let i = 0; i < raw.byteLength; i++) {
+                    binary += String.fromCharCode(raw[i]);
+                }
+                const b64 = btoa(binary);
+                await sendBluetoothEscpos(b64);
+            } catch (e) {
+                alert("Errore nel test Bluetooth: " + e.message);
+            }
+        }
+        // ========================================================
+
         async function openSettings() {
-            const resp = await fetch('/settings');
-            const data = await resp.json();
+            const [sResp, uResp] = await Promise.all([fetch('/settings'), fetch('/users')]);
+            const data = await sResp.json();
+            usersData = await uResp.json();
+
             document.getElementById('kitchen-printer-ip').value = data.kitchen_printer_ip || '';
             document.getElementById('auto-print-kitchen-cb').checked = data.auto_print_kitchen !== false;
             document.getElementById('kitchen-printer-protocol').value = data.kitchen_printer_protocol || 'escpos';
+
+            document.getElementById('bar-printer-ip').value = data.bar_printer_ip || '';
+            document.getElementById('auto-print-bar-cb').checked = data.auto_print_bar !== false;
+            document.getElementById('bar-printer-protocol').value = data.bar_printer_protocol || 'escpos';
+
             document.getElementById('settings-next-bill').value = data.next_order_number || 1;
 
-            document.getElementById('bill-printer-ip').value = state.printer_ip || '';
-            document.getElementById('printer-protocol').value = state.printer_protocol || 'escpos';
+            const currentUser = usersData.find(u => u.id === state.user_id) || {};
+            document.getElementById('staff-name-input').value = currentUser.name || `Staff ${state.user_id}`;
+            document.getElementById('printer-connection-type').value = state.printer_connection_type || currentUser.printer_connection_type || 'network';
+            document.getElementById('printer-paper-width').value = state.printer_paper_width || currentUser.printer_paper_width || '80mm';
+            document.getElementById('bill-printer-ip').value = state.printer_ip || currentUser.printer_ip || '';
+            document.getElementById('printer-protocol').value = state.printer_protocol || currentUser.printer_protocol || 'escpos';
             document.getElementById('auto-print-main-cb').checked = state.auto_print_main !== false;
+
+            togglePrinterConnectionTypeUI();
+            if (btDevice && btDevice.gatt && btDevice.gatt.connected) {
+                updateBtStatusUI('connected', btDevice.name);
+            }
 
             document.getElementById('settings-overlay').classList.remove('hidden');
         }
@@ -1743,19 +2190,60 @@
         }
 
         async function saveSettings() {
+            const newStaffName = document.getElementById('staff-name-input').value.trim() || `Staff ${state.user_id}`;
+            const billPrinterIp = document.getElementById('bill-printer-ip').value.trim();
+            const printerProto = document.getElementById('printer-protocol').value;
+            const autoPrintMain = document.getElementById('auto-print-main-cb').checked;
+            const printerConnType = document.getElementById('printer-connection-type').value;
+            const printerPaperWidth = document.getElementById('printer-paper-width').value;
+
             const payload = {
                 bill_printer_ip: "", // Deprecated globally
                 kitchen_printer_ip: document.getElementById('kitchen-printer-ip').value,
                 auto_print_kitchen: document.getElementById('auto-print-kitchen-cb').checked,
                 kitchen_printer_protocol: document.getElementById('kitchen-printer-protocol').value,
+                bar_printer_ip: document.getElementById('bar-printer-ip').value,
+                auto_print_bar: document.getElementById('auto-print-bar-cb').checked,
+                bar_printer_protocol: document.getElementById('bar-printer-protocol').value,
                 next_order_number: parseInt(document.getElementById('settings-next-bill').value) || 1
             };
 
             // Aggiorniamo anche lo stato utente per lo scontrino principale
-            state.auto_print_main = document.getElementById('auto-print-main-cb').checked;
-            state.printer_ip = document.getElementById('bill-printer-ip').value;
-            state.printer_protocol = document.getElementById('printer-protocol').value;
+            state.auto_print_main = autoPrintMain;
+            state.printer_ip = billPrinterIp;
+            state.printer_protocol = printerProto;
+            state.printer_connection_type = printerConnType;
+            state.printer_paper_width = printerPaperWidth;
             await saveRemoteState();
+
+            // Salva le modifiche utente (incluso nome personalizzato, tipo connessione e larghezza carta) nel database
+            try {
+                await fetch(`/users/${state.user_id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: newStaffName,
+                        printer_ip: billPrinterIp,
+                        auto_print_main: autoPrintMain,
+                        printer_protocol: printerProto,
+                        printer_connection_type: printerConnType,
+                        printer_paper_width: printerPaperWidth
+                    })
+                });
+
+                const uObj = usersData.find(u => u.id === state.user_id);
+                if (uObj) {
+                    uObj.name = newStaffName;
+                    uObj.printer_ip = billPrinterIp;
+                    uObj.auto_print_main = autoPrintMain;
+                    uObj.printer_protocol = printerProto;
+                    uObj.printer_connection_type = printerConnType;
+                    uObj.printer_paper_width = printerPaperWidth;
+                }
+                updateUserSelectorDropdown();
+            } catch (err) {
+                console.error("Error saving user details:", err);
+            }
 
             const resp = await fetch('/settings', {
                 method: 'POST',
@@ -1765,7 +2253,7 @@
             if (resp.ok) {
                 closeSettings();
             } else {
-                alert("Error saving settings");
+                alert("Errore durante il salvataggio delle impostazioni");
             }
         }
 

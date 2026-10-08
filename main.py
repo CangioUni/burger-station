@@ -1,9 +1,10 @@
 from fastapi import FastAPI, HTTPException, Body
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from typing import Optional
 from pydantic import BaseModel
-from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, or_
+from sqlalchemy import create_engine, Column, Integer, String, Float, DateTime, Boolean, ForeignKey, or_, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 from sqlalchemy.sql import text
@@ -40,11 +41,15 @@ class User(Base):
     active_state = Column(String, default="{}")
     auto_print_main = Column(Boolean, default=True)
     printer_protocol = Column(String, default="escpos")
+    printer_connection_type = Column(String, default="network")
+    printer_paper_width = Column(String, default="80mm")
 
 class Category(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True)
     name = Column(String, unique=True)
+    sort_order = Column(Integer, default=0)
+    printer_target = Column(String, default="cucina")
 
 class MenuItem(Base):
     __tablename__ = "menu_items"
@@ -71,6 +76,9 @@ class SystemSettings(Base):
     next_order_number = Column(Integer, default=1)
     auto_print_kitchen = Column(Boolean, default=True)
     kitchen_printer_protocol = Column(String, default="escpos")
+    bar_printer_ip = Column(String, default="10.0.0.200")
+    bar_printer_protocol = Column(String, default="escpos")
+    auto_print_bar = Column(Boolean, default=True)
 
 class Order(Base):
     __tablename__ = "orders"
@@ -149,6 +157,15 @@ if "menu_items" in inspector.get_table_names():
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE menu_items ADD COLUMN sort_order INTEGER DEFAULT 0"))
 
+if "categories" in inspector.get_table_names():
+    cat_columns = [c["name"] for c in inspector.get_columns("categories")]
+    with engine.begin() as conn:
+        if "sort_order" not in cat_columns:
+            conn.execute(text("ALTER TABLE categories ADD COLUMN sort_order INTEGER DEFAULT 0"))
+        if "printer_target" not in cat_columns:
+            conn.execute(text("ALTER TABLE categories ADD COLUMN printer_target VARCHAR DEFAULT 'cucina'"))
+            conn.execute(text("UPDATE categories SET printer_target = 'bevande' WHERE LOWER(name) IN ('bibite', 'bevande', 'bar', 'drink', 'drinks')"))
+
 if "system_settings" in inspector.get_table_names():
     ss_columns = [c["name"] for c in inspector.get_columns("system_settings")]
     with engine.begin() as conn:
@@ -158,6 +175,12 @@ if "system_settings" in inspector.get_table_names():
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN auto_print_kitchen BOOLEAN DEFAULT 1"))
         if "kitchen_printer_protocol" not in ss_columns:
             conn.execute(text("ALTER TABLE system_settings ADD COLUMN kitchen_printer_protocol VARCHAR DEFAULT 'escpos'"))
+        if "bar_printer_ip" not in ss_columns:
+            conn.execute(text("ALTER TABLE system_settings ADD COLUMN bar_printer_ip VARCHAR DEFAULT '10.0.0.200'"))
+        if "bar_printer_protocol" not in ss_columns:
+            conn.execute(text("ALTER TABLE system_settings ADD COLUMN bar_printer_protocol VARCHAR DEFAULT 'escpos'"))
+        if "auto_print_bar" not in ss_columns:
+            conn.execute(text("ALTER TABLE system_settings ADD COLUMN auto_print_bar BOOLEAN DEFAULT 1"))
 
 if "users" in inspector.get_table_names():
     user_columns = [c["name"] for c in inspector.get_columns("users")]
@@ -170,6 +193,10 @@ if "users" in inspector.get_table_names():
             conn.execute(text("ALTER TABLE users ADD COLUMN auto_print_main BOOLEAN DEFAULT 1"))
         if "printer_protocol" not in user_columns:
             conn.execute(text("ALTER TABLE users ADD COLUMN printer_protocol VARCHAR DEFAULT 'escpos'"))
+        if "printer_connection_type" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN printer_connection_type VARCHAR DEFAULT 'network'"))
+        if "printer_paper_width" not in user_columns:
+            conn.execute(text("ALTER TABLE users ADD COLUMN printer_paper_width VARCHAR DEFAULT '80mm'"))
 
 if "orders" in inspector.get_table_names():
     order_columns = [c["name"] for c in inspector.get_columns("orders")]
@@ -216,10 +243,18 @@ if not db.query(User).first():
 db.close()
 
 # Initialize printing module (must be after models + DB setup)
-printing.init(SessionLocal, User, SystemSettings, MenuItem)
+printing.init(SessionLocal, User, SystemSettings, MenuItem, Category)
 
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 main_loop = None
 
@@ -306,6 +341,9 @@ class SettingsUpdate(BaseModel):
     kitchen_printer_ip: str
     auto_print_kitchen: bool
     kitchen_printer_protocol: str
+    bar_printer_ip: Optional[str] = "10.0.0.200"
+    auto_print_bar: Optional[bool] = True
+    bar_printer_protocol: Optional[str] = "escpos"
     next_order_number: int
 
 bancomat_lock = threading.Lock()
@@ -331,17 +369,23 @@ def get_settings():
     db.close()
     if settings:
         return {
-            "bill_printer_ip": settings.bill_printer_ip, 
-            "kitchen_printer_ip": settings.kitchen_printer_ip, 
-            "auto_print_kitchen": settings.auto_print_kitchen, 
-            "kitchen_printer_protocol": settings.kitchen_printer_protocol,
-            "next_order_number": settings.next_order_number
+            "bill_printer_ip": settings.bill_printer_ip or "", 
+            "kitchen_printer_ip": settings.kitchen_printer_ip or "", 
+            "auto_print_kitchen": settings.auto_print_kitchen if settings.auto_print_kitchen is not None else True, 
+            "kitchen_printer_protocol": settings.kitchen_printer_protocol or "escpos",
+            "bar_printer_ip": getattr(settings, "bar_printer_ip", "10.0.0.200") or "10.0.0.200",
+            "auto_print_bar": getattr(settings, "auto_print_bar", True) if getattr(settings, "auto_print_bar", True) is not None else True,
+            "bar_printer_protocol": getattr(settings, "bar_printer_protocol", "escpos") or "escpos",
+            "next_order_number": settings.next_order_number or 1
         }
     return {
         "bill_printer_ip": "", 
-        "kitchen_printer_ip": "", 
+        "kitchen_printer_ip": "10.0.0.200", 
         "auto_print_kitchen": True, 
         "kitchen_printer_protocol": "escpos",
+        "bar_printer_ip": "10.0.0.200",
+        "auto_print_bar": True,
+        "bar_printer_protocol": "escpos",
         "next_order_number": 1
     }
 
@@ -357,6 +401,9 @@ def update_settings(payload: SettingsUpdate):
         settings.kitchen_printer_ip = payload.kitchen_printer_ip
         settings.auto_print_kitchen = payload.auto_print_kitchen
         settings.kitchen_printer_protocol = payload.kitchen_printer_protocol
+        settings.bar_printer_ip = payload.bar_printer_ip or "10.0.0.200"
+        settings.auto_print_bar = payload.auto_print_bar if payload.auto_print_bar is not None else True
+        settings.bar_printer_protocol = payload.bar_printer_protocol or "escpos"
         settings.next_order_number = payload.next_order_number
         db.commit()
         printing.invalidate_settings_cache()
@@ -396,12 +443,47 @@ def get_users():
     db.close()
     return users
 
+class UserUpdate(BaseModel):
+    name: Optional[str] = None
+    printer_ip: Optional[str] = None
+    auto_print_main: Optional[bool] = None
+    printer_protocol: Optional[str] = None
+    printer_connection_type: Optional[str] = None
+    printer_paper_width: Optional[str] = None
+
+@app.put("/users/{user_id}")
+@app.patch("/users/{user_id}")
+def update_user(user_id: int, payload: UserUpdate):
+    db = SessionLocal()
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        db.close()
+        raise HTTPException(status_code=404, detail="Operatore non trovato")
+    if payload.name is not None:
+        user.name = payload.name.strip()
+    if payload.printer_ip is not None:
+        user.printer_ip = payload.printer_ip.strip()
+    if payload.auto_print_main is not None:
+        user.auto_print_main = payload.auto_print_main
+    if payload.printer_protocol is not None:
+        user.printer_protocol = payload.printer_protocol
+    if payload.printer_connection_type is not None:
+        user.printer_connection_type = payload.printer_connection_type
+    if payload.printer_paper_width is not None:
+        user.printer_paper_width = payload.printer_paper_width
+    db.commit()
+    printing.invalidate_user_cache(user_id)
+    db.close()
+    return {"status": "success"}
+
 class UserStateUpdate(BaseModel):
     active_cart: str
     active_state: str
     auto_print_main: bool
     printer_ip: str
     printer_protocol: str
+    printer_connection_type: Optional[str] = "network"
+    printer_paper_width: Optional[str] = "80mm"
 
 @app.get("/users/{user_id}/cart")
 def get_user_cart(user_id: int):
@@ -414,9 +496,19 @@ def get_user_cart(user_id: int):
             "active_state": user.active_state or "{}", 
             "auto_print_main": user.auto_print_main,
             "printer_ip": user.printer_ip or "",
-            "printer_protocol": user.printer_protocol or "escpos"
+            "printer_protocol": user.printer_protocol or "escpos",
+            "printer_connection_type": getattr(user, "printer_connection_type", "network") or "network",
+            "printer_paper_width": getattr(user, "printer_paper_width", "80mm") or "80mm"
         }
-    return {"active_cart": "[]", "active_state": "{}", "auto_print_main": True, "printer_ip": "", "printer_protocol": "escpos"}
+    return {
+        "active_cart": "[]",
+        "active_state": "{}",
+        "auto_print_main": True,
+        "printer_ip": "",
+        "printer_protocol": "escpos",
+        "printer_connection_type": "network",
+        "printer_paper_width": "80mm"
+    }
 
 @app.post("/users/{user_id}/cart")
 def update_user_cart(user_id: int, payload: UserStateUpdate):
@@ -428,6 +520,10 @@ def update_user_cart(user_id: int, payload: UserStateUpdate):
         user.auto_print_main = payload.auto_print_main
         user.printer_ip = payload.printer_ip
         user.printer_protocol = payload.printer_protocol
+        if payload.printer_connection_type is not None:
+            user.printer_connection_type = payload.printer_connection_type
+        if payload.printer_paper_width is not None:
+            user.printer_paper_width = payload.printer_paper_width
         db.commit()
         printing.invalidate_user_cache(user_id)
 
@@ -499,6 +595,16 @@ def get_menu():
 
 class CategoryCreate(BaseModel):
     name: str
+    sort_order: Optional[int] = None
+    printer_target: Optional[str] = "cucina"
+
+class CategoryUpdate(BaseModel):
+    name: Optional[str] = None
+    sort_order: Optional[int] = None
+    printer_target: Optional[str] = None
+
+class ReorderCategoriesPayload(BaseModel):
+    ordered_ids: list[int]
 
 class MenuItemCreate(BaseModel):
     description: str
@@ -516,24 +622,69 @@ class MenuItemCreate(BaseModel):
 @app.get("/categories")
 def get_categories():
     db = SessionLocal()
-    cats = db.query(Category).all()
+    cats = db.query(Category).order_by(Category.sort_order.asc(), Category.id.asc()).all()
     db.close()
     return cats
 
 @app.post("/categories")
 def create_category(payload: CategoryCreate):
     db = SessionLocal()
-    cat = Category(name=payload.name)
+    if payload.sort_order is None:
+        max_order = db.query(func.max(Category.sort_order)).scalar()
+        sort_val = (max_order + 1) if max_order is not None else 0
+    else:
+        sort_val = payload.sort_order
+    cat = Category(
+        name=payload.name,
+        sort_order=sort_val,
+        printer_target=payload.printer_target or "cucina"
+    )
     db.add(cat)
     db.commit()
+    printing.invalidate_category_cache()
     db.close()
     return {"status": "success"}
+
+@app.patch("/categories/{cat_id}")
+@app.put("/categories/{cat_id}")
+def update_category(cat_id: int, payload: CategoryUpdate):
+    db = SessionLocal()
+    cat = db.query(Category).filter(Category.id == cat_id).first()
+    if not cat:
+        db.close()
+        raise HTTPException(status_code=404, detail="Categoria non trovata")
+    if payload.name is not None:
+        cat.name = payload.name
+    if payload.sort_order is not None:
+        cat.sort_order = payload.sort_order
+    if payload.printer_target is not None:
+        cat.printer_target = payload.printer_target
+    db.commit()
+    printing.invalidate_category_cache()
+    db.close()
+    return {"status": "success"}
+
+@app.post("/categories/reorder")
+def reorder_categories(payload: ReorderCategoriesPayload):
+    db = SessionLocal()
+    try:
+        for index, cat_id in enumerate(payload.ordered_ids):
+            db.query(Category).filter(Category.id == cat_id).update({"sort_order": index})
+        db.commit()
+        printing.invalidate_category_cache()
+        return {"status": "success"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(e))
+    finally:
+        db.close()
 
 @app.delete("/categories/{cat_id}")
 def delete_category(cat_id: int):
     db = SessionLocal()
     db.query(Category).filter(Category.id == cat_id).delete()
     db.commit()
+    printing.invalidate_category_cache()
     db.close()
     return {"status": "success"}
 
@@ -579,6 +730,7 @@ def update_menu_item(item_id: int, payload: MenuItemCreate):
     db.close()
     return {"status": "success"}
 
+# Thread-safe lock for atomic order number sequence generation
 order_creation_lock = threading.Lock()
 
 @app.post("/order")
@@ -590,9 +742,10 @@ def create_order(payload: dict = Body(...)):
 
         user = db.query(User).filter(User.id == payload.get('user_id')).first()
         auto_print_main = user.auto_print_main if user else True
+        auto_print_bar = settings.auto_print_bar if settings and settings.auto_print_bar is not None else True
 
         # Pre-acquire printer locks before starting the DB transaction to avoid committing if printer is busy
-        required_printers = printing.get_required_printers(payload, auto_print_main, auto_print_kitchen)
+        required_printers = printing.get_required_printers(payload, auto_print_main, auto_print_kitchen, auto_print_bar)
         acquired_locks = []
         try:
             for ip in required_printers:
@@ -762,27 +915,50 @@ def create_order(payload: dict = Body(...)):
 
             bill_status = {"printed": False, "message": "Autostampa disabilitata"}
             kitchen_status = {"printed": False, "message": "Non necessaria / disabilitata"}
+            bar_status = {"printed": False, "message": "Non necessaria / disabilitata"}
 
-            # We print the receipt for the customer if user setting is True
+            order_num_int = int(order_number_str) if order_number_str.isdigit() else order_id_to_use
+
+            # 1. Print Customer Bill
             if auto_print_main:
-                b_ok, b_msg = print_bill(int(order_number_str) if order_number_str.isdigit() else order_id_to_use, payload, lock_acquired=True)
-                bill_status = {"printed": b_ok, "message": b_msg}
+                b_res = print_bill(order_num_int, payload, lock_acquired=True)
+                if len(b_res) == 3:
+                    b_ok, b_msg, b_extra = b_res
+                else:
+                    b_ok, b_msg = b_res
+                    b_extra = {}
+                bill_status = {"printed": b_ok, "message": b_msg, **b_extra}
                 if not b_ok and b_msg == "CARTA ESAURITA":
                     bill_status["paper_out"] = True
 
-            # Print to kitchen if system setting is True and it's a new order
+            prod_payload = {
+                "items": new_items_for_kitchen,
+                "table_number": payload.get("table_number", "Nessuno"),
+                "takeaway": payload.get("takeaway", False),
+                "notes": payload.get("notes", "")
+            }
+
+            # 2. Print to Kitchen (Cucina)
             if auto_print_kitchen:
-                k_ok, k_msg = print_kitchen_receipt(int(order_number_str) if order_number_str.isdigit() else order_id_to_use, {"items": new_items_for_kitchen, "table_number": payload.get("table_number", "Nessuno"), "takeaway": payload.get("takeaway", False), "notes": payload.get("notes", "")}, lock_acquired=True)
+                k_ok, k_msg = printing.print_kitchen_receipt(order_num_int, prod_payload, lock_acquired=True)
                 kitchen_status = {"printed": k_ok, "message": k_msg}
                 if not k_ok and k_msg == "CARTA ESAURITA":
                     kitchen_status["paper_out"] = True
 
+            # 3. Print to Bar (Bevande)
+            if auto_print_bar:
+                bar_ok, bar_msg = printing.print_bar_receipt(order_num_int, prod_payload, lock_acquired=True)
+                bar_status = {"printed": bar_ok, "message": bar_msg}
+                if not bar_ok and bar_msg == "CARTA ESAURITA":
+                    bar_status["paper_out"] = True
+
             return {
                 "status": "success",
                 "order_id": order_number_str,
-                "auto_print": auto_print_main or auto_print_kitchen,
+                "auto_print": auto_print_main or auto_print_kitchen or auto_print_bar,
                 "bill_status": bill_status,
-                "kitchen_status": kitchen_status
+                "kitchen_status": kitchen_status,
+                "bar_status": bar_status
             }
         finally:
             # Always release acquired printer locks
@@ -802,14 +978,72 @@ def create_order(payload: dict = Body(...)):
 @app.post("/order/{order_id}/print-bill")
 def reprint_bill(order_id: str, payload: dict = Body(...)):
     try:
-        # User ID might be inside payload to know who prints it
-        b_ok, b_msg = print_bill(int(order_id) if order_id.isdigit() else 0, payload)
-        status_dict = {"printed": b_ok, "message": b_msg}
+        b_res = print_bill(int(order_id) if order_id.isdigit() else 0, payload)
+        if len(b_res) == 3:
+            b_ok, b_msg, b_extra = b_res
+        else:
+            b_ok, b_msg = b_res
+            b_extra = {}
+        status_dict = {"printed": b_ok, "message": b_msg, **b_extra}
         if not b_ok and b_msg == "CARTA ESAURITA":
             status_dict["paper_out"] = True
         return {"status": "success", "bill_status": status_dict}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/order/{order_id}/escpos-bill")
+@app.post("/order/{order_id}/escpos-bill")
+def get_order_escpos_bill(order_id: str, user_id: Optional[int] = 1, paper_width: Optional[str] = None):
+    """
+    Generates and returns ESC/POS Base64 binary directly for Web Bluetooth printing on tablets.
+    """
+    db = SessionLocal()
+    try:
+        order = db.query(Order).filter((Order.order_number == str(order_id)) | (Order.id == (int(order_id) if str(order_id).isdigit() else 0))).first()
+        if not order:
+            raise HTTPException(status_code=404, detail="Ordine non trovato")
+        
+        items_payload = []
+        for i in order.items:
+            items_payload.append({
+                "description": i.description,
+                "price": i.price_at_sale,
+                "notes": i.notes or "",
+                "ingredients": i.ingredients or "",
+                "combo_choices": i.combo_choices or "",
+                "item_discount": i.discount or 0.0,
+                "item_discount_type": i.discount_type or "%"
+            })
+        
+        payload = {
+            "items": items_payload,
+            "total": order.total,
+            "discount": order.discount,
+            "payment_method": order.payment_method,
+            "payment_status": order.payment_status,
+            "takeaway": order.takeaway,
+            "table_number": order.table_number,
+            "user_id": user_id or order.user_id,
+            "notes": order.notes or ""
+        }
+        
+        target_width = paper_width
+        if not target_width:
+            u_settings = printing.get_user_settings(user_id or order.user_id)
+            target_width = u_settings.get("printer_paper_width", "80mm") if u_settings else "80mm"
+        
+        order_num_int = int(order.order_number) if (order.order_number and order.order_number.isdigit()) else order.id
+        raw_bytes = printing.generate_bill_escpos(order_num_int, payload, paper_width=target_width)
+        b64 = base64.b64encode(raw_bytes).decode('ascii')
+        
+        return {
+            "status": "success",
+            "order_id": order.order_number or str(order.id),
+            "paper_width": target_width,
+            "escpos_base64": b64
+        }
+    finally:
+        db.close()
 
 @app.post("/order/{order_id}/print-kitchen")
 def reprint_kitchen(order_id: str, payload: dict = Body(...)):
@@ -828,11 +1062,36 @@ def reprint_kitchen(order_id: str, payload: dict = Body(...)):
             "notes": payload.get("notes", "")
         }
 
-        k_ok, k_msg = print_kitchen_receipt(int(order_id) if order_id.isdigit() else 0, kitchen_payload)
+        k_ok, k_msg = printing.print_kitchen_receipt(int(order_id) if order_id.isdigit() else 0, kitchen_payload)
         status_dict = {"printed": k_ok, "message": k_msg}
         if not k_ok and k_msg == "CARTA ESAURITA":
             status_dict["paper_out"] = True
         return {"status": "success", "kitchen_status": status_dict}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/order/{order_id}/print-bar")
+@app.post("/order/{order_id}/print-bevande")
+def reprint_bar(order_id: str, payload: dict = Body(...)):
+    try:
+        new_items = []
+        for item in payload.get('items', []):
+            is_sent = item.get('_is_sent_to_kitchen', False)
+            if not is_sent:
+                new_items.append(item)
+
+        bar_payload = {
+            "items": new_items,
+            "table_number": payload.get("table_number", "Nessuno"),
+            "takeaway": payload.get("takeaway", False),
+            "notes": payload.get("notes", "")
+        }
+
+        b_ok, b_msg = printing.print_bar_receipt(int(order_id) if order_id.isdigit() else 0, bar_payload)
+        status_dict = {"printed": b_ok, "message": b_msg}
+        if not b_ok and b_msg == "CARTA ESAURITA":
+            status_dict["paper_out"] = True
+        return {"status": "success", "bar_status": status_dict}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -863,11 +1122,17 @@ def get_orders():
 @app.get("/export/menu_json")
 def export_menu_json():
     db = SessionLocal()
-    categories = db.query(Category).all()
-    items = db.query(MenuItem).all()
+    categories = db.query(Category).order_by(Category.sort_order.asc(), Category.id.asc()).all()
+    items = db.query(MenuItem).order_by(MenuItem.sort_order.asc(), MenuItem.description.asc()).all()
     db.close()
     return {
-        "categories": [{"name": c.name} for c in categories],
+        "categories": [
+            {
+                "name": c.name,
+                "sort_order": c.sort_order if c.sort_order is not None else 0,
+                "printer_target": c.printer_target or "cucina"
+            } for c in categories
+        ],
         "items": [
             {
                 "description": i.description,
@@ -907,13 +1172,16 @@ def import_menu_json(payload: ImportMenuPayload):
             db.execute(text("DELETE FROM sqlite_sequence WHERE name='categories'"))
             db.commit()
         printing.invalidate_menu_cache()
+        printing.invalidate_category_cache()
 
         existing_names = {name for (name,) in db.query(Category.name).all()}
             
-        for c in cats:
+        for idx, c in enumerate(cats):
             c_name = c.get("name")
+            c_order = c.get("sort_order", idx)
+            c_target = c.get("printer_target", "cucina")
             if c_name and c_name not in existing_names:
-                db.add(Category(name=c_name))
+                db.add(Category(name=c_name, sort_order=c_order, printer_target=c_target))
                 existing_names.add(c_name)
                 
         for i in items:

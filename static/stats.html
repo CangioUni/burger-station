@@ -20,7 +20,7 @@
         <div class="bg-white p-4 rounded shadow mb-6">
             <h2 class="text-xl font-bold mb-4 border-b pb-2">Seleziona Giornata Lavorativa</h2>
             <div class="flex items-center space-x-4">
-                <select id="day-selector" class="bg-gray-100 border border-gray-300 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5">
+                <select id="day-selector" onchange="loadStats()" class="bg-gray-100 border border-gray-300 text-gray-900 text-lg rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-64 p-2.5">
                     <option value="">Caricamento...</option>
                 </select>
                 <button onclick="loadStats()" class="bg-blue-600 hover:bg-blue-500 text-white font-bold py-2 px-4 rounded shadow">Aggiorna Dati</button>

@@ -13,6 +13,10 @@ erDiagram
         Integer id PK
         String name
         String printer_ip
+        String printer_protocol "default 'escpos'"
+        String printer_connection_type "default 'network'"
+        String printer_paper_width "default '80mm'"
+        Boolean auto_print_main "default 1"
         String active_cart
         String active_state
     }
@@ -20,6 +24,8 @@ erDiagram
     categories {
         Integer id PK
         String name UK
+        Integer sort_order "default 0"
+        String printer_target "default 'cucina'"
     }
 
     menu_items {
@@ -44,6 +50,11 @@ erDiagram
         String kitchen_printer_ip
         Boolean auto_print
         Integer next_order_number
+        Boolean auto_print_kitchen
+        String kitchen_printer_protocol
+        String bar_printer_ip
+        String bar_printer_protocol
+        Boolean auto_print_bar
     }
 
     orders {
@@ -78,10 +89,14 @@ erDiagram
 ## Tables Definition
 
 ### `users`
-Stores information about the system operators (staff) and their current POS state.
+Stores information about the system operators (staff), their printer settings, and their current POS workspace state.
 * **id** `Integer` - Primary Key
-* **name** `String` - Name of the operator
-* **printer_ip** `String` - IP address of the operator's specific printer (legacy/optional depending on setup)
+* **name** `String` - Custom name of the operator (e.g. "Staff 1", "Operatore Mobile 1")
+* **printer_ip** `String` - IP address of the operator's receipt printer when using Network connection (Default: `"10.0.0.200"`)
+* **printer_protocol** `String` - Network printer protocol: `'escpos'` or `'xon/xoff'` (Default: `'escpos'`)
+* **printer_connection_type** `String` - Connection type for bill printing: `'network'` (Ethernet/Wi-Fi) or `'bluetooth'` (Web Bluetooth via Tablet) (Default: `'network'`)
+* **printer_paper_width** `String` - Receipt paper width: `'80mm'` (48 columns) or `'58mm'` (32 columns) (Default: `'80mm'`)
+* **auto_print_main** `Boolean` - Whether to automatically print customer receipt on checkout (Default: `True`)
 * **active_cart** `String` - JSON string representing the operator's current cart state (Default: `"[]"`)
 * **active_state** `String` - JSON string representing the operator's current UI state, like selected table and discount (Default: `"{}"`)
 
@@ -89,6 +104,8 @@ Stores information about the system operators (staff) and their current POS stat
 Stores the menu categories (e.g., panini, dolci, bibite).
 * **id** `Integer` - Primary Key
 * **name** `String` - Name of the category (Unique)
+* **sort_order** `Integer` - Display sort order index (Default: `0`)
+* **printer_target** `String` - Production printer destination: `'cucina'`, `'bevande'`, or `'none'` (Default: `'cucina'`)
 
 ### `menu_items`
 Stores all available items and combos that can be ordered from the POS.
@@ -105,8 +122,13 @@ Stores all available items and combos that can be ordered from the POS.
 ### `system_settings`
 Stores global POS settings. Typically contains a single row (id=1).
 * **id** `Integer` - Primary Key
-* **bill_printer_ip** `String` - IP address of the receipt/bill printer
+* **bill_printer_ip** `String` - Legacy bill printer IP (operator specific IP in `users` is used)
 * **kitchen_printer_ip** `String` - IP address of the kitchen printer
+* **kitchen_printer_protocol** `String` - Kitchen printer protocol (`escpos` or `xon/xoff`)
+* **auto_print_kitchen** `Boolean` - Auto-print kitchen order ticket (Default: `True`)
+* **bar_printer_ip** `String` - IP address of the bevande / bar printer (Default: `"10.0.0.200"`)
+* **bar_printer_protocol** `String` - Bar printer protocol (`escpos` or `xon/xoff`)
+* **auto_print_bar** `Boolean` - Auto-print bevande / bar order ticket (Default: `True`)
 * **auto_print** `Boolean` - Flag indicating if receipts should be printed automatically on checkout (Default: `True`)
 * **next_order_number** `Integer` - The next consecutive order number to be assigned (Default: `1`)
 
